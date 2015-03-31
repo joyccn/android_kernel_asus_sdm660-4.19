@@ -165,6 +165,11 @@
 #define __no_sanitize_memory
 #define __no_kmsan_checks
 
+#if __GNUC__ >= 5
+/* Avoid reordering a top level statement */
+#define __noreorder    __attribute__((no_reorder))
+#endif
+
 /*
  * Turn individual warnings and errors on and off locally, depending
  * on version.
