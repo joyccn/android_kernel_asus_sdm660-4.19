@@ -414,6 +414,8 @@ static bool __wake_q_add(struct wake_q_head *head, struct task_struct *task)
 	if (unlikely(cmpxchg_relaxed(&node->next, NULL, WAKE_Q_TAIL)))
 		return false;
 
+	head->count++;
+
 	/*
 	 * The head is context local, there can be no concurrency.
 	 */
