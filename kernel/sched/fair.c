@@ -9697,18 +9697,8 @@ int can_migrate_task(struct task_struct *p, struct lb_env *env)
 	if (throttled_lb_pair(task_group(p), env->src_cpu, env->dst_cpu))
 		return 0;
 
-	/*
-	 * We want to prioritize the migration of eligible tasks.
-	 * For ineligible tasks we soft-limit them and only allow
-	 * them to migrate when nr_balance_failed is non-zero to
-	 * avoid load-balancing trying very hard to balance the load.
-	 */
-	if (!env->sd->nr_balance_failed &&
-	    task_is_ineligible_on_dst_cpu(p, env->dst_cpu))
-		return 0;
-
-	/* Disregard percpu kthreads; they are where they need to be. */
-        if ((p->flags & PF_KTHREAD) && kthread_is_per_cpu(p))
+	/* Disregard pcpu kthreads; they are where they need to be. */
+	if (kthread_is_per_cpu(p))
 		return 0;
 
 	if (!cpumask_test_cpu(env->dst_cpu, &p->cpus_allowed)) {
