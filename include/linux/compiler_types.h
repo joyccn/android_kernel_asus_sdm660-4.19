@@ -219,10 +219,6 @@ struct ftrace_likely_data {
 
 #define __compiler_offsetof(a, b)	__builtin_offsetof(a, b)
 
-#ifndef __norecordmcount
-#define __norecordmcount
-#endif
-
 #ifndef __nocfi
 #define __nocfi
 #endif
