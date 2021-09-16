@@ -15,6 +15,7 @@
 #include <linux/input.h>
 #include <linux/uaccess.h>
 #include "nt36xxx_mem_map.h"
+#include <uapi/linux/sched/types.h>
 
 #define NVT_TOUCH_RST_PIN 980
 #define NVT_TOUCH_INT_PIN 943
