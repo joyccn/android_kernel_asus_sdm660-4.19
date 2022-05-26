@@ -907,16 +907,10 @@ static int dummy_probe(struct i2c_client *client,
 	return 0;
 }
 
-static int dummy_remove(struct i2c_client *client)
-{
-	return 0;
-}
-
 static struct i2c_driver dummy_driver = {
 	.driver.name	= "dummy",
 	.driver.probe_type = PROBE_FORCE_SYNCHRONOUS,
 	.probe		= dummy_probe,
-	.remove		= dummy_remove,
 	.id_table	= dummy_id,
 };
 
