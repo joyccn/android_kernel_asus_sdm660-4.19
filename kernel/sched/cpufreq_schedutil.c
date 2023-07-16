@@ -237,31 +237,22 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	return l_freq;
 }
 
-static inline unsigned long sugov_apply_dvfs_headroom(unsigned long util,
-						      unsigned long capacity,
-						      unsigned long threshold)
+/*
+ * DVFS decision are made at discrete points. If CPU stays busy, the util will
+ * continue to grow, which means it could need to run at a higher frequency
+ * before the next decision point was reached. IOW, we can't follow the util as
+ * it grows immediately, but there's a delay before we issue a request to go to
+ * higher frequency. The headroom caters for this delay so the system continues
+ * to run at adequate performance point.
+ *
+ * This function provides enough headroom to provide adequate performance
+ * assuming the CPU continues to be busy.
+ *
+ * At the moment it is a constant multiplication with 1.25.
+ */
+static inline unsigned long sugov_apply_dvfs_headroom(unsigned long util)
 {
-	unsigned long delta, headroom;
-	unsigned long capped_util = min(util, capacity);
-	unsigned long delta_t = capacity - threshold;
-
-	delta = capacity - capped_util;
-	headroom = (delta * delta * delta * 5) / (delta_t * capacity * 16);
-
-	if (capped_util < threshold)
-		headroom = (headroom * capped_util * capped_util) /
-			  (threshold * threshold);
-
-	return capped_util + headroom;
-}
-
-
-static inline unsigned long apply_dvfs_headroom(unsigned long util, int cpu)
-{
-	struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
-
-	util = min_t(unsigned long, util, SCHED_CAPACITY_SCALE);
-	return sg_cpu->dvfs_headroom_lut[util];
+	return util + (util >> 2);
 }
 
 unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
@@ -269,7 +260,7 @@ unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
 				 unsigned long max)
 {
 	/* Add dvfs headroom to actual utilization */
-	actual = apply_dvfs_headroom(actual, cpu);
+	actual = sugov_apply_dvfs_headroom(actual);
 	/* Actually we don't need to target the max performance */
 	if (actual < max)
 		max = actual;
