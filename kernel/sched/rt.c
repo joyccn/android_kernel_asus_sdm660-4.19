@@ -2093,12 +2093,16 @@ static int rto_next_cpu(struct root_domain *rd)
 
 		rd->rto_cpu = cpu;
 
-		/* Do not send IPI to self */
-		if (cpu == this_cpu)
-			continue;
+		if (cpu < nr_cpu_ids) {
 
-		if (cpu < nr_cpu_ids)
+			/* Do not send IPI to self */
+			if (cpu == this_cpu)
+				continue;
+
+			if (!has_pushable_tasks(cpu_rq(cpu)))
+				continue;
 			return cpu;
+		}
 
 		rd->rto_cpu = -1;
 
