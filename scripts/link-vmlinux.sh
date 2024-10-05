@@ -103,7 +103,7 @@ vmlinux_link()
 	local objects
 
 	if [ "${SRCARCH}" != "um" ]; then
-		if [ -n "${CONFIG_LTO_CLANG}" ]; then
+		if [ -n "${CONFIG_LTO_CLANG}" ] || [ -n "${CONFIG_LTO_GCC}" ]; then
 			# Use vmlinux.o instead of performing the slow LTO
 			# link again.
 			objects="--whole-archive	\
