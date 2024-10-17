@@ -796,10 +796,6 @@ static int cds_ol_rx_thread(void *arg)
 	set_user_nice(current, -1);
 #endif
 
-#ifdef MSM_PLATFORM
-	set_wake_up_idle(true);
-#endif
-
 	complete(&pSchedContext->ol_rx_start_event);
 
 	while (!shutdown) {

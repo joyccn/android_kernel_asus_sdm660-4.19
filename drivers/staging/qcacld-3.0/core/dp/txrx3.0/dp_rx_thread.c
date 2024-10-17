@@ -477,7 +477,6 @@ static int dp_rx_thread_loop(void *arg)
 	}
 
 	qdf_set_user_nice(qdf_get_current_task(), -1);
-	qdf_set_wake_up_idle(true);
 
 	qdf_event_set(&rx_thread->start_event);
 	dp_info("starting rx_thread (%s) id %d pid %d", qdf_get_current_comm(),
