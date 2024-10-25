@@ -734,6 +734,9 @@ KBUILD_AFLAGS	+= $(OPT_FLAGS)
 # Enable fast FMA optimizations
 KBUILD_CFLAGS += $(call cc-option,-ffp-contract=fast)
 
+# Enable hot cold split optimization
+KBUILD_CFLAGS += $(call cc-option,-mllvm -hot-cold-split=true)
+
 ifdef CONFIG_CC_WERROR
 KBUILD_CFLAGS  += -Werror
 endif
