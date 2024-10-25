@@ -731,6 +731,9 @@ endif
 KBUILD_CFLAGS	+= $(OPT_FLAGS)
 KBUILD_AFLAGS	+= $(OPT_FLAGS)
 
+# Enable fast FMA optimizations
+KBUILD_CFLAGS += $(call cc-option,-ffp-contract=fast)
+
 ifdef CONFIG_CC_WERROR
 KBUILD_CFLAGS  += -Werror
 endif
