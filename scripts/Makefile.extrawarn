@@ -25,6 +25,9 @@ KBUILD_CFLAGS += $(call cc-disable-warning, default-const-init-unsafe)
 
 KBUILD_CFLAGS += $(call cc-disable-warning, packed-not-aligned)
 
+# Explicitly clear padding bits during variable initialization
+KBUILD_CFLAGS += $(call cc-option,-fzero-init-padding-bits=all)
+
 ifeq ("$(origin W)", "command line")
   export KBUILD_ENABLE_EXTRA_GCC_CHECKS := $(W)
 endif
