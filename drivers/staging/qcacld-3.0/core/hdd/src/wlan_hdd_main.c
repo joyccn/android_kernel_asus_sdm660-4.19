@@ -15265,7 +15265,8 @@ pld_deinit:
 	QDF_BUG(QDF_IS_STATUS_SUCCESS(status));
 
 	osif_driver_sync_unregister();
-	osif_driver_sync_wait_for_ops(driver_sync);
+	if (driver_sync)
+		osif_driver_sync_wait_for_ops(driver_sync);
 
 	hdd_driver_mode_change_unregister();
 	pld_deinit();
@@ -15281,8 +15282,10 @@ comp_deinit:
 hdd_deinit:
 	hdd_deinit();
 trans_stop:
-	osif_driver_sync_trans_stop(driver_sync);
-	osif_driver_sync_destroy(driver_sync);
+	if (driver_sync) {
+		osif_driver_sync_trans_stop(driver_sync);
+		osif_driver_sync_destroy(driver_sync);
+	}
 sync_deinit:
 	osif_sync_deinit();
 	hdd_qdf_deinit();
