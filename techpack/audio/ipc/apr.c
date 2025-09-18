@@ -1180,7 +1180,7 @@ static int apr_probe(struct platform_device *pdev)
 						"apr", 0);
 	if (!apr_pkt_ctx)
 		pr_err("%s: Unable to create ipc log context\n", __func__);
-#endif
+#endif  /* CONFIG_IPC_LOGGING */
 
 	spin_lock(&apr_priv->apr_lock);
 	apr_priv->is_initial_boot = true;
