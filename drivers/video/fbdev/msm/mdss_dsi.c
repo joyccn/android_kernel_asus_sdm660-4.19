@@ -1018,7 +1018,9 @@ static int mdss_dsi_debugfs_setup(struct mdss_panel_data *pdata,
 	ctrl_pdata->debugfs_info = dfs;
 	return 0;
 }
+#endif
 
+#ifdef CONFIG_DEBUG_FS
 static int mdss_dsi_debugfs_init(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
 	int rc;
@@ -3064,13 +3066,10 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 					rc);
 		}
 		break;
-<<<<<<< HEAD
+#endif
 	case MDSS_EVENT_UPDATE_LIVEDISPLAY:
 		rc = mdss_livedisplay_update(ctrl_pdata, (int)(unsigned long) arg);
 		break;
-=======
-#endif
->>>>>>> ed33fde5aac2 (msm: mdss: Import ASUS Changes)
 	default:
 		pr_debug("%s: unhandled event=%d\n", __func__, event);
 		break;
