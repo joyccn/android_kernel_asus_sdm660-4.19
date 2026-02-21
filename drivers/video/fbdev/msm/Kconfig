@@ -170,4 +170,10 @@ config FB_MSM_MDSS_FRC_DEBUG
 	statistics and check whether its output pattern matches expected
 	cadence.
 
+config FB_MSM_MDSS_CUSTOM_FRAMERATE
+	depends on FB_MSM_MDSS
+	bool "MDSS Custom Refresh Rate"
+	help
+	 Add Refresh Rate Changer Feature support with Cmdline.
+
 endif
