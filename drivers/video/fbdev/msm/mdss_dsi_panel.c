@@ -47,7 +47,7 @@ static unsigned int refresh_rate_cus = CONFIG_FB_MSM_MDSS_DEFAULT_FRAMERATE;
 static int __init read_refresh_rate_cmd(char *s)
 {
 	if (s) {
-		refresh_rate_cus = simple_stroul(s, NULL, 0);
+		refresh_rate_cus = simple_strtoul(s, NULL, 0);
 	}
 
 	if (refresh_rate_cus < 48 || refresh_rate_cus > 72) {
