@@ -176,4 +176,15 @@ config FB_MSM_MDSS_CUSTOM_FRAMERATE
 	help
 	 Add Refresh Rate Changer Feature support with Cmdline.
 
+if FB_MSM_MDSS_CUSTOM_FRAMERATE
+
+config FB_MSM_MDSS_DEFAULT_FRAMERATE
+	int "Default MDSS refresh-rate value"
+	range 48 72
+	default 60
+	help
+	 Default custom refresh rate value.
+
+endif # FB_MSM_MDSS_CUSTOM_FRAMERATE
+
 endif

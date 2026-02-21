@@ -43,7 +43,7 @@ DEFINE_LED_TRIGGER(bl_led_trigger);
 #endif
 
 #ifdef CONFIG_FB_MSM_MDSS_CUSTOM_FRAMERATE
-static unsigned int refresh_rate_cus = 60;
+static unsigned int refresh_rate_cus = CONFIG_FB_MSM_MDSS_DEFAULT_FRAMERATE;
 static int __init read_refresh_rate_cmd(char *s)
 {
 	if (s) {
@@ -51,7 +51,7 @@ static int __init read_refresh_rate_cmd(char *s)
 	}
 
 	if (refresh_rate_cus < 48 || refresh_rate_cus > 72) {
-		refresh_rate_cus = 60;
+		refresh_rate_cus = CONFIG_FB_MSM_MDSS_DEFAULT_FRAMERATE;
 	}
 
 	return 1;
