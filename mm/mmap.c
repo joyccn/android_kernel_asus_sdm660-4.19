@@ -3232,8 +3232,13 @@ void exit_mmap(struct mm_struct *mm)
 		 * This needs to be done before calling munlock_vma_pages_all(),
 		 * which clears VM_LOCKED, otherwise the oom reaper cannot
 		 * reliably test it.
+		 *
+		 * Simple LMK has a dedicated reaper thread that calls
+		 * __oom_reap_task_mm() under mmap_sem. Calling it here
+		 * without holding mmap_sem is racy. So, skip it.
 		 */
-		(void)__oom_reap_task_mm(mm);
+		if (!IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
+			(void)__oom_reap_task_mm(mm);
 
 		set_bit(MMF_OOM_SKIP, &mm->flags);
 		mmap_write_lock(mm);
