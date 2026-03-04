@@ -355,7 +355,7 @@ int smp_call_function_single_async(int cpu, struct __call_single_data *csd)
 	csd->flags = CSD_FLAG_LOCK;
 	smp_wmb();
 
-	err = generic_exec_single(cpu, csd, csd->func, csd->info);
+	err = generic_exec_single(cpu, (void *)csd, csd->func, csd->info);
 	preempt_enable();
 
 	return err;
