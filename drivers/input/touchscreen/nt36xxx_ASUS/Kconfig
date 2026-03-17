@@ -2,8 +2,8 @@
 # Novatek NT36xxx touchscreen driver configuration
 #
 
-config TOUCHSCREEN_NT36XXX
-	bool "Novatek NT36XXX support"
+config TOUCHSCREEN_NT36XXX_ASUS
+	bool "ASUS Novatek NT36XXX support"
 	help
 	  Say Y here if you have a Novatek NT36xxx touchscreen connected
 	  to your system.
@@ -13,6 +13,7 @@ config TOUCHSCREEN_NT36XXX
 config TOUCHSCREEN_NT36XXX_FW_UPDATE
 	bool "Novatek NT36xxx firmware update"
 	depends on TOUCHSCREEN_NT36XXX
+	default n
 	help
 	  Say Y here if you want to enable firmware update function of nt36xxx driver.
 

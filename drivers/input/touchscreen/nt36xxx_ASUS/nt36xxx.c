@@ -13,6 +13,7 @@
 #include <linux/irq.h>
 #include <linux/gpio.h>
 #include <linux/input/mt.h>
+#include <linux/proc_fs.h>
 #include <linux/of_gpio.h>
 #include <linux/of_irq.h>
 #include <linux/notifier.h>
@@ -21,14 +22,17 @@
 
 struct nvt_ts_data *ts;
 static uint8_t bTouchIsAwake;
-static int nvt_fb_notifier_callback(struct notifier_block *self,
-				    unsigned long event, void *data);
+static int __always_inline nvt_fb_notifier_callback(struct notifier_block *self,
+						    unsigned long event, void *data);
+
 #if BOOT_UPDATE_FIRMWARE
 static struct workqueue_struct *nvt_fwu_wq;
 extern void Boot_Update_Firmware(struct work_struct *work);
 #endif
 
 #if WAKEUP_GESTURE
+static struct wakeup_source *gesture_wakelock;
+
 #define GESTURE_WORD_C 12
 #define GESTURE_WORD_W 13
 #define GESTURE_WORD_V 14
@@ -59,6 +63,52 @@ const uint16_t gesture_key_array[] = {
 	KEY_POWER, //GESTURE_SLIDE_DOWN
 	KEY_POWER, //GESTURE_SLIDE_LEFT
 	KEY_POWER, //GESTURE_SLIDE_RIGHT
+};
+#define NVT_GESTURE_MODE "tpd_gesture"
+
+static long gesture_mode = 0;
+static ssize_t nvt_gesture_mode_get_proc(struct file *file,
+                        char __user *buffer, size_t size, loff_t *ppos)
+{
+	char ptr[64] = { 0 };
+	size_t len = (gesture_mode == 0) ? sprintf(ptr, "0\n") : sprintf(ptr, "1\n");
+	return simple_read_from_buffer(buffer, size, ppos, ptr, len);
+}
+
+static ssize_t nvt_gesture_mode_set_proc(struct file *filp,
+                        const char __user *buffer, size_t count, loff_t *off)
+{
+	char msg[20] = {0};
+	int ret = 0;
+
+	if (!bTouchIsAwake) {
+		pr_debug("Touch is already sleep, cant modify gesture node\n");
+		return count;
+	}
+
+	ret = copy_from_user(msg, buffer, count);
+	if (ret) {
+		return -EFAULT;
+	}
+
+	ret = kstrtol(msg, 0, &gesture_mode);
+	if (!ret) {
+		if (gesture_mode == 0) {
+			gesture_mode = 0;
+		} else {
+			gesture_mode = 0x1FF;
+		}
+	}
+
+	pr_debug("gesture_mode = 0x%x\n", (unsigned int)gesture_mode);
+	return count;
+}
+
+static struct proc_dir_entry *nvt_gesture_mode_proc = NULL;
+static const struct file_operations gesture_mode_proc_ops = {
+	.owner = THIS_MODULE,
+	.read = nvt_gesture_mode_get_proc,
+	.write = nvt_gesture_mode_set_proc,
 };
 
 inline void nvt_ts_wakeup_gesture_report(uint8_t gesture_id, uint8_t *data)
@@ -125,7 +175,110 @@ inline void nvt_ts_wakeup_gesture_report(uint8_t gesture_id, uint8_t *data)
 }
 #endif
 
-static void nvt_irq_enable(bool enable)
+#if NVT_POWER_SOURCE_CUST_EN
+static int nvt_lcm_bias_power_init(struct nvt_ts_data *data)
+{
+	int ret = 0;
+
+	data->lcm_lab = regulator_get(&data->client->dev, "lcm_lab");
+	if (IS_ERR(data->lcm_lab)) {
+		ret = PTR_ERR(data->lcm_lab);
+		goto exit;
+	}
+
+	if (regulator_count_voltages(data->lcm_lab) > 0) {
+		ret = regulator_set_voltage(data->lcm_lab, LCM_LAB_MIN_UV, LCM_LAB_MAX_UV);
+		if (ret)
+			goto reg_lcm_lab_put;
+	}
+
+	data->lcm_ibb = regulator_get(&data->client->dev, "lcm_ibb");
+	if (IS_ERR(data->lcm_ibb)) {
+		ret = PTR_ERR(data->lcm_ibb);
+		goto reg_set_lcm_lab_vtg;
+	}
+
+	if (regulator_count_voltages(data->lcm_ibb) > 0) {
+		ret = regulator_set_voltage(data->lcm_ibb, LCM_IBB_MIN_UV, LCM_IBB_MAX_UV);
+		if (ret)
+			goto reg_lcm_ibb_put;
+	}
+
+	return 0;
+
+reg_lcm_ibb_put:
+	regulator_put(data->lcm_ibb);
+	data->lcm_ibb = NULL;
+reg_set_lcm_lab_vtg:
+	if (regulator_count_voltages(data->lcm_lab) > 0) {
+		regulator_set_voltage(data->lcm_lab, 0, LCM_LAB_MAX_UV);
+	}
+reg_lcm_lab_put:
+	regulator_put(data->lcm_lab);
+	data->lcm_lab = NULL;
+exit:
+	return ret;
+}
+
+static int nvt_lcm_bias_power_deinit(struct nvt_ts_data *data)
+{
+	if (data-> lcm_ibb != NULL) {
+		if (regulator_count_voltages(data->lcm_ibb) > 0)
+			regulator_set_voltage(data->lcm_ibb, 0, LCM_LAB_MAX_UV);
+
+		regulator_put(data->lcm_ibb);
+	}
+	if (data-> lcm_lab != NULL) {
+		if (regulator_count_voltages(data->lcm_lab) > 0)
+			regulator_set_voltage(data->lcm_lab, 0, LCM_LAB_MAX_UV);
+
+		regulator_put(data->lcm_lab);
+	}
+	return 0;
+}
+
+static int nvt_lcm_power_source_ctrl(struct nvt_ts_data *data, int enable)
+{
+	int rc;
+
+	if (data->lcm_lab != NULL && data->lcm_ibb != NULL) {
+		if (enable) {
+			if (atomic_inc_return(&data->lcm_lab_power) == 1) {
+				rc = regulator_enable(data->lcm_lab);
+				if (rc)
+					atomic_dec(&data->lcm_lab_power);
+			} else
+				atomic_dec(&data->lcm_lab_power);
+
+			if (atomic_inc_return(&data->lcm_ibb_power) == 1) {
+				rc = regulator_enable(data->lcm_ibb);
+				if (rc)
+					atomic_dec(&data->lcm_ibb_power);
+			} else
+				atomic_dec(&data->lcm_ibb_power);
+		} else {
+			if (atomic_dec_return(&(data->lcm_lab_power)) == 0) {
+				rc = regulator_disable(data->lcm_lab);
+				if (rc)
+					atomic_inc(&data->lcm_lab_power);
+			} else
+				atomic_inc(&data->lcm_lab_power);
+
+			if (atomic_dec_return(&data->lcm_ibb_power) == 0) {
+				rc = regulator_disable(data->lcm_ibb);
+				if (rc)
+					atomic_inc(&data->lcm_ibb_power);
+			} else
+				atomic_inc(&data->lcm_ibb_power);
+		}
+	} else
+		pr_debug("Regulator lcm_ibb or lcm_lab is invalid");
+
+	return 0;
+}
+#endif
+
+static void __always_inline nvt_irq_enable(bool enable)
 {
 	struct irq_desc *desc;
 
@@ -410,8 +563,9 @@ static inline void nvt_ts_worker(struct work_struct *work)
 	sched_setscheduler(current, SCHED_RR, &param);
 
 #if WAKEUP_GESTURE
-	if (unlikely(bTouchIsAwake == 0)) {
-		pm_wakeup_event(&ts->input_dev->dev, 5000);
+	if (unlikely(bTouchIsAwake == 0))
+		__pm_wakeup_event(gesture_wakelock, msecs_to_jiffies(5000));
+#endif
 
 	mutex_lock(&ts->lock);
 
@@ -608,6 +762,17 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 
 	nvt_parse_dt(&client->dev);
 
+#if NVT_POWER_SOURCE_CUST_EN
+	atomic_set(&ts->lcm_lab_power, 0);
+	atomic_set(&ts->lcm_ibb_power, 0);
+
+	ret = nvt_lcm_bias_power_init(ts);
+	if (ret)
+		goto err_power_resource_init_fail;
+
+	nvt_lcm_power_source_ctrl(ts, 1);
+#endif
+
 	ret = nvt_gpio_config(ts);
 	if (ret)
 		goto err_gpio_config_failed;
@@ -655,9 +820,10 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 #endif
 
 #if WAKEUP_GESTURE
-	for (retry = 0; retry < (sizeof(gesture_key_array) /
-	     sizeof(gesture_key_array[0])); retry++)
+	for (retry = 0; retry < ARRAY_SIZE(gesture_key_array); retry++) {
 		input_set_capability(ts->input_dev, EV_KEY, gesture_key_array[retry]);
+	}
+	gesture_wakelock = wakeup_source_register(NULL, "poll-wake-lock");
 #endif
 
 	sprintf(ts->phys, "input/ts");
@@ -703,6 +869,11 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 	}
 	INIT_WORK(&ts->irq_work, nvt_ts_worker);
 
+#if WAKEUP_GESTURE
+	nvt_gesture_mode_proc = proc_create(NVT_GESTURE_MODE, 0666, NULL,
+				&gesture_mode_proc_ops);
+#endif
+
 	ts->fb_notif.notifier_call = nvt_fb_notifier_callback;
 	ret = fb_register_client(&ts->fb_notif);
 	if (ret)
@@ -746,6 +917,11 @@ err_chipvertrim_failed:
 err_check_functionality_failed:
 	nvt_gpio_deconfig(ts);
 err_gpio_config_failed:
+#if NVT_POWER_SOURCE_CUST_EN
+	nvt_lcm_power_source_ctrl(ts, 0);
+	nvt_lcm_bias_power_deinit(ts);
+err_power_resource_init_fail:
+#endif
 	i2c_set_clientdata(client, NULL);
 	if (ts) {
 		kfree(ts);
@@ -815,33 +991,53 @@ static inline void nvt_ts_shutdown(struct i2c_client *client)
 #endif
 }
 
-static int32_t nvt_ts_suspend(struct device *dev)
+static int32_t __always_inline nvt_ts_suspend(struct device *dev)
 {
+#if NVT_POWER_SOURCE_CUST_EN
+	struct nvt_ts_data *data = dev_get_drvdata(dev);
+#endif
 	uint8_t buf[4] = { 0 };
 	uint32_t i = 0;
 
 	if (!bTouchIsAwake)
 		return 0;
 
-#if !WAKEUP_GESTURE
-	nvt_irq_enable(false);
-#endif
-
 	mutex_lock(&ts->lock);
 
 	bTouchIsAwake = 0;
 
 #if WAKEUP_GESTURE
-	buf[0] = EVENT_MAP_HOST_CMD;
-	buf[1] = 0x13;
-	CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
+	if (((gesture_mode & 0x100) == 0) || ((gesture_mode & 0x0FF) == 0)) {
+		nvt_irq_enable(false);
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = 0x11;
+		CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
 
-	enable_irq_wake(ts->client->irq);
-#else // WAKEUP_GESTURE
+		// Force deep sleep mode
+		nvt_set_page(I2C_FW_Address, 0x11a50);
+		buf[0] = 0x11a50 & 0xff;
+		buf[1] = 0x11;
+		CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
+#if NVT_POWER_SOURCE_CUST_EN
+		nvt_lcm_power_source_ctrl(data, 0);
+#endif
+	} else {
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = 0x13;
+		CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
+		nvt_irq_enable(true);
+	}
+#else
+	nvt_irq_enable(false);
 	buf[0] = EVENT_MAP_HOST_CMD;
 	buf[1] = 0x11;
 	CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
-#endif // WAKEUP_GESTURE
+	
+	nvt_set_page(I2C_FW_Address, 0x11a50);
+	buf[0] = 0x11a50 & 0xff;
+	buf[1] = 0x11;
+	CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
+#endif
 
 	mutex_unlock(&ts->lock);
 
@@ -859,7 +1055,7 @@ static int32_t nvt_ts_suspend(struct device *dev)
 	return 0;
 }
 
-static int32_t nvt_ts_resume(struct device *dev)
+static int32_t __always_inline nvt_ts_resume(struct device *dev)
 {
 	if (bTouchIsAwake)
 		return 0;
@@ -875,8 +1071,10 @@ static int32_t nvt_ts_resume(struct device *dev)
 		nvt_check_fw_reset_state(RESET_STATE_REK);
 	}
 
-#if !WAKEUP_GESTURE
-	nvt_irq_enable(true);
+#if WAKEUP_GESTURE
+	if (((gesture_mode & 0x100) == 0) || ((gesture_mode & 0x0FF) == 0)) {
+		nvt_irq_enable(true);
+	}
 #endif
 
 	bTouchIsAwake = 1;
@@ -948,6 +1146,9 @@ module_init(nvt_driver_init);
 
 static inline void __exit nvt_driver_exit(void)
 {
+#if NVT_POWER_SOURCE_CUST_EN
+	nvt_lcm_bias_power_deinit(ts);
+#endif
 	i2c_del_driver(&nvt_i2c_driver);
 }
 module_exit(nvt_driver_exit);

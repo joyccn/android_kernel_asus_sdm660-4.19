@@ -15,10 +15,20 @@
 #include <linux/input.h>
 #include <linux/uaccess.h>
 #include "nt36xxx_mem_map.h"
+#include <linux/regulator/consumer.h>
 #include <uapi/linux/sched/types.h>
 
 #define NVT_TOUCH_RST_PIN 980
 #define NVT_TOUCH_INT_PIN 943
+
+#define NVT_POWER_SOURCE_CUST_EN  1
+
+#if NVT_POWER_SOURCE_CUST_EN
+#define LCM_LAB_MIN_UV 6000000
+#define LCM_LAB_MAX_UV 6000000
+#define LCM_IBB_MIN_UV 6000000
+#define LCM_IBB_MAX_UV 6000000
+#endif
 
 #define INT_TRIGGER_TYPE IRQ_TYPE_EDGE_RISING
 
@@ -29,7 +39,12 @@
 #define NVT_TS_NAME "NVTCapacitiveTouchScreen"
 
 #define TOUCH_DEFAULT_MAX_WIDTH 1080
-#define TOUCH_DEFAULT_MAX_HEIGHT 1920
+#ifdef CONFIG_MACH_ASUS_X01BD
+#define TOUCH_DEFAULT_MAX_HEIGHT 2280
+#else
+#define TOUCH_DEFAULT_MAX_HEIGHT 2160
+#endif
+
 #define TOUCH_MAX_FINGER_NUM 10
 #define TOUCH_FORCE_NUM 1000
 
@@ -39,11 +54,16 @@
 #if WAKEUP_GESTURE
 extern const uint16_t gesture_key_array[];
 #endif
+
 #ifndef CONFIG_TOUCHSCREEN_NT36XXX_FW_UPDATE
 #define BOOT_UPDATE_FIRMWARE 0
 #else
 #define BOOT_UPDATE_FIRMWARE 1
+#ifdef CONFIG_MACH_ASUS_X01BD
+#define BOOT_UPDATE_FIRMWARE_NAME "novatek_ts_fw_v8D.bin"
+#else
 #define BOOT_UPDATE_FIRMWARE_NAME "novatek_ts_fw.bin"
+#endif
 #endif
 
 #define POINT_DATA_LEN 65
@@ -75,6 +95,12 @@ struct nvt_ts_data {
 	uint8_t xbuf[1025];
 	struct mutex xbuf_lock;
 	bool irq_enabled;
+#if NVT_POWER_SOURCE_CUST_EN
+	struct regulator *lcm_lab;
+	struct regulator *lcm_ibb;
+	atomic_t lcm_lab_power;
+	atomic_t lcm_ibb_power;
+#endif
 };
 
 typedef enum {

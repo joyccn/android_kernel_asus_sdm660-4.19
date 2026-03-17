@@ -8,6 +8,9 @@
  */
 
 #include <linux/firmware.h>
+#ifdef CONFIG_MACH_ASUS_X00TD
+#include "mdss_dsi.h"
+#endif
 #include "nt36xxx.h"
 
 #if BOOT_UPDATE_FIRMWARE
@@ -402,7 +405,7 @@ int32_t Erase_Flash(void)
 		}
 	}
 
-	NVT_LOG("Erase OK \n");
+	pr_debug("Erase OK \n");
 	return 0;
 }
 
@@ -687,7 +690,7 @@ int32_t nvt_check_flash_end_flag(void)
 
 	msleep(10);
 
-\	ret = nvt_set_page(I2C_BLDR_Address, ts->mmap->READ_FLASH_CHECKSUM_ADDR);
+	ret = nvt_set_page(I2C_BLDR_Address, ts->mmap->READ_FLASH_CHECKSUM_ADDR);
 	if (ret < 0)
 		return ret;
 
@@ -710,9 +713,16 @@ int32_t nvt_check_flash_end_flag(void)
 void Boot_Update_Firmware(struct work_struct *work)
 {
 	int32_t ret = 0;
-
 	char firmware_name[256] = "";
+
+#ifdef CONFIG_MACH_ASUS_X00TD
+	if (nvt_tp_check == 0)
+		sprintf(firmware_name, "novatek_ts_fw_dj.bin")
+	else
+		sprintf(firmware_name, "novatek_ts_fw_txd.bin");
+#else
 	sprintf(firmware_name, BOOT_UPDATE_FIRMWARE_NAME);
+#endif
 
 	ret = update_firmware_request(firmware_name);
 	if (ret)
