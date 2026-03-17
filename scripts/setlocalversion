@@ -155,6 +155,9 @@ collect_files()
 		*\~*)
 			continue
 			;;
+		*localversion-st*|*localversion-cip*)
+			continue
+			;;
 		esac
 		if test -e "$file"; then
 			res="$res$(cat "$file")"
