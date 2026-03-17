@@ -1315,6 +1315,7 @@ source "drivers/input/touchscreen/synaptics_dsx_X00TD/Kconfig"
 
 source "drivers/input/touchscreen/focaltech_touch/Kconfig"
 
+<<<<<<< HEAD
 source "drivers/input/touchscreen/NVT_Touch_X01BD/Kconfig"
 
 config TOUCHSCREEN_HIMAX_CHIPSET
@@ -1332,5 +1333,7 @@ source "drivers/input/touchscreen/hxchipset_X01BD/Kconfig"
 source "drivers/input/touchscreen/NVT_Touch_X00TD/Kconfig"
 
 source "drivers/input/touchscreen/NVT_Touch_ASUS/Kconfig"
+
+source "drivers/input/touchscreen/nt36xxx/Kconfig"
 
 endif
