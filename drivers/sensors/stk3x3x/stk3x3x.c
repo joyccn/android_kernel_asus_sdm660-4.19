@@ -32,6 +32,7 @@
 #include <linux/delay.h>
 #include <linux/sched.h>
 #include <linux/kthread.h>
+#include <linux/printk.h>
 #include <linux/errno.h>
 #include <linux/pm_wakeup.h>
 #include <linux/interrupt.h>
@@ -41,34 +42,28 @@
 #ifdef CONFIG_OF
 #include <linux/of_gpio.h>
 #endif
-#ifdef CONFIG_HAS_EARLYSUSPEND
-//#include <linux/earlysuspend.h>
+
+#ifndef DEBUG
+#ifdef pr_info
+#undef pr_info
+#define pr_info(fmt, ...) no_printk(KERN_INFO fmt, ##__VA_ARGS__)
+#endif
+#ifdef pr_debug
+#undef pr_debug
+#define pr_info(fmt, ...) no_printk(KERN_DEBUG fmt, ##__VA_ARGS__)
+#endif
 #endif
 
 #define DRIVER_VERSION "3.11.0"
 
 /* Driver Settings */
 #define CONFIG_STK_PS_ALS_USE_CHANGE_THRESHOLD
-/* Huaqin modify for lsensor gain by chenyijun5 at 2018/02/27 start */
-#define STK_ALS_CHANGE_THD                                                     \
-	2 /* The threshold to trigger ALS interrupt, unit: lux */
-/* Huaqin modify for lsensor gain by chenyijun5 at 2018/02/27 end */
+#define STK_ALS_CHANGE_THD 2
 #define STK_INT_PS_MODE 1 /* 1, 2, or 3	*/
-/*Huaqin delete for ps INT mode by chenyijun5 at 2018/03/29 start*/
-//#define STK_POLL_PS
-/*Huaqin delete for ps INT mode by chenyijun5 at 2018/03/29 end*/
-#define STK_POLL_ALS /* ALS interrupt is valid only when STK_INT_PS_MODE = 1	or 4*/
+#define STK_POLL_ALS
 #define STK_TUNE0
-/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 start*/
 #define CALI_PS_EVERY_TIME
 #define CTTRACKING
-/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 end*/
-/*Huaqin delete for redundant logs by chenyijun5 at 2018/03/05 start*/
-//#define STK_DEBUG_PRINTF
-/*Huaqin delete for redundant logs by chenyijun5 at 2018/03/05 end*/
-//#define SPREADTRUM_PLATFORM
-//#define STK_ALS_FIR
-//#define STK_CHK_REG
 #define QUALCOMM_PLATFORM
 
 #ifdef QUALCOMM_PLATFORM
@@ -77,19 +72,11 @@
 #define STK_QUALCOMM_POWER_CTRL
 #endif
 
-#ifdef SPREADTRUM_PLATFORM
 #include "stk3x3x.h"
-#else
-#include "stk3x3x.h"
-#endif
-/*Huaqin modify for als by zhuqiang at 2018/10/24 start*/
+
 extern char mdss_mdp_panel[256];
 bool lcm_flags = 0;
-/*Huaqin modify for als by zhuqiang at 2018/10/24 end*/
-/*Huaqin add for ps adjustmen by zhuqiang at 2018/11/15 start*/
 bool hq_suspend_flags = 1;
-/*Huaqin add for ps adjustmen by zhuqiang at 2018/11/15 end*/
-/* Define Register Map */
 
 #define STK_STATE_REG 0x00
 #define STK_PSCTRL_REG 0x01
@@ -215,7 +202,6 @@ bool hq_suspend_flags = 1;
 /* misc define */
 #define MIN_ALS_POLL_DELAY_NS 60000000
 
-/*Huaqin modify for psensor near/far threshold by zhuqiang at 2018/10/17 start*/
 #ifdef STK_TUNE0
 #define STK_MAX_MIN_DIFF 230
 #define STK_LT_N_CT 80
@@ -227,23 +213,18 @@ bool hq_suspend_flags = 1;
 #define STK_H_HT 800
 #define STK_H_LT 500
 #endif
-/*Huaqin modify for psensor near/far threshold by czhuqiang at 2018/10/17 end*/
 
-/* Huaqin add for ZQL1650-1072 by zhuqiang at 2018/04/23 start*/
 bool ps_status_flag = 0;
 bool call_status_flag = 0;
 module_param(call_status_flag, bool, 0660);
 MODULE_PARM_DESC(call_status_flag, "Judgment call status");
-/* Huaqin add for ZQL1650-1072 by zhuqiang at 2018/04/23 end*/
 
 #define STK_IRC_MAX_ALS_CODE 20000
 #define STK_IRC_MIN_ALS_CODE 25
 #define STK_IRC_MIN_IR_CODE 50
 #define STK_IRC_ALS_DENOMI 2
 #define STK_IRC_ALS_NUMERA 5
-/*Huaqin modify for als by zhuqiang at 2018/10/23 start*/
 #define STK_IRC_ALS_CORREC_A 211
-/*Huaqin modify for als by zhuqiang at 2018/10/23 end*/
 
 #define DEVICE_NAME "stk_ps"
 #ifdef QUALCOMM_PLATFORM
@@ -427,14 +408,10 @@ struct stk3x3x_data {
 	int stk_lt_n_ct;
 	int stk_ht_n_ct;
 #endif
-/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 start*/
 #ifdef CTTRACKING
 	bool ps_thd_update;
-	/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/27 start*/
 	bool skin_near;
-/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/27 end*/
 #endif
-/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 end*/
 #ifdef STK_ALS_FIR
 	struct data_filter fir;
 	atomic_t firlength;
@@ -481,14 +458,10 @@ static int32_t stk3x3x_set_als_thd_l(struct stk3x3x_data *ps_data,
 				     uint16_t thd_l);
 static int32_t stk3x3x_set_als_thd_h(struct stk3x3x_data *ps_data,
 				     uint16_t thd_h);
-/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/27 start*/
 static int32_t stk3x3x_get_offset(struct stk3x3x_data *ps_data, int16_t ct);
-/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/27 end*/
 #ifdef STK_TUNE0
-/*Huaqin modify for psensor cali-auto by zhuqiang at 2018/10/10 start*/
 static void stk_ps_int_handle(struct stk3x3x_data *ps_data, uint32_t ps_reading,
 			      int32_t nf_state);
-/*Huaqin modify for psensor cali-auto by zhuqiang at 2018/10/10 end*/
 static int stk_ps_tune_zero_func_fae(struct stk3x3x_data *ps_data);
 #endif
 #ifdef STK_CHK_REG
@@ -529,7 +502,7 @@ static int stk3x3x_i2c_read_data(struct i2c_client *client,
 	}
 
 	if (retry >= 5) {
-		printk(KERN_ERR "%s: i2c read fail, err=%d\n", __func__, err);
+		pr_err("%s: i2c read fail, err=%d\n", __func__, err);
 		return -EIO;
 	}
 	return 0;
@@ -548,7 +521,7 @@ static int stk3x3x_i2c_write_data(struct i2c_client *client,
 	if (!client)
 		return -EINVAL;
 	else if (length >= 10) {
-		printk(KERN_ERR "%s:length %d exceeds 10\n", __func__, length);
+		pr_err("%s:length %d exceeds 10\n", __func__, length);
 		return -EINVAL;
 	}
 
@@ -570,7 +543,7 @@ static int stk3x3x_i2c_write_data(struct i2c_client *client,
 	}
 
 	if (retry >= 5) {
-		printk(KERN_ERR "%s: i2c write fail, err=%d\n", __func__, err);
+		pr_err("%s: i2c write fail, err=%d\n", __func__, err);
 		return -EIO;
 	}
 	return 0;
@@ -581,9 +554,11 @@ static int stk3x3x_i2c_smbus_read_byte_data(struct i2c_client *client,
 {
 	unsigned char value;
 	int err;
+
 	err = stk3x3x_i2c_read_data(client, command, 1, &value);
 	if (err < 0)
 		return err;
+
 	return value;
 }
 
@@ -591,9 +566,7 @@ static int stk3x3x_i2c_smbus_write_byte_data(struct i2c_client *client,
 					     unsigned char command,
 					     unsigned char value)
 {
-	int err;
-	err = stk3x3x_i2c_write_data(client, command, 1, &value);
-	return err;
+	return stk3x3x_i2c_write_data(client, command, 1, &value);
 }
 
 uint32_t stk_alscode2lux(struct stk3x3x_data *ps_data, uint32_t alscode)
@@ -622,16 +595,16 @@ static void stk_init_code_threshold_table(struct stk3x3x_data *ps_data)
 
 	code_threshold_table[0] = 0;
 #ifdef STK_DEBUG_PRINTF
-	printk(KERN_INFO "alscode[0]=%d\n", 0);
+	pr_debug("alscode[0]=%d\n", 0);
 #endif
 	for (i = 1, j = 0; i < LUX_THD_TABLE_SIZE; i++, j++) {
 		alscode = stk_lux2alscode(ps_data, lux_threshold_table[j]);
-		printk(KERN_INFO "alscode[%d]=%d\n", i, alscode);
+		pr_debug("alscode[%d]=%d\n", i, alscode);
 		code_threshold_table[i] = (uint16_t)(alscode);
 	}
 
 	code_threshold_table[i] = 0xffff;
-	printk(KERN_INFO "alscode[%d]=%d\n", i, alscode);
+	pr_debug("alscode[%d]=%d\n", i, alscode);
 }
 
 static uint32_t stk_get_lux_interval_index(uint16_t alscode)
@@ -673,19 +646,16 @@ static void stk3x3x_proc_plat_data(struct stk3x3x_data *ps_data,
 #ifdef STK_POLL_PS
 	ps_data->psctrl_reg &= 0x3F;
 #endif
-	/*Huaqin modify for als by zhuqiang at 2018/08/28 start*/
 	ps_data->alsctrl_reg = 0x71; //plat_data->alsctrl_reg;
-	/*Huaqin modify for als by zhuqiang at 2018/08/28 end*/
-	//ps_data->ledctrl_reg = plat_data->ledctrl_reg;
 
 	ps_data->wait_reg = plat_data->wait_reg;
 	if (ps_data->wait_reg < 2) {
-		printk(KERN_WARNING
+		pr_warn(
 		       "%s: wait_reg should be larger than 2, force to write 2\n",
 		       __func__);
 		ps_data->wait_reg = 2;
 	} else if (ps_data->wait_reg > 0xFF) {
-		printk(KERN_WARNING
+		pr_warn(
 		       "%s: wait_reg should be less than 0xFF, force to write 0xFF\n",
 		       __func__);
 		ps_data->wait_reg = 0xFF;
@@ -720,54 +690,54 @@ static int32_t stk3x3x_init_all_reg(struct stk3x3x_data *ps_data)
 	ret = stk3x3x_i2c_smbus_write_byte_data(ps_data->client, STK_STATE_REG,
 						ps_data->state_reg);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		pr_err("%s: write i2c error\n", __func__);
 		return ret;
 	}
 	ret = stk3x3x_i2c_smbus_write_byte_data(ps_data->client, STK_PSCTRL_REG,
 						ps_data->psctrl_reg);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		pr_err("%s: write i2c error\n", __func__);
 		return ret;
 	}
 	ret = stk3x3x_i2c_smbus_write_byte_data(
 		ps_data->client, STK_ALSCTRL_REG, ps_data->alsctrl_reg);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		pr_err("%s: write i2c error\n", __func__);
 		return ret;
 	}
 	ret = stk3x3x_i2c_smbus_write_byte_data(
 		ps_data->client, STK_LEDCTRL_REG, ps_data->ledctrl_reg);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		pr_err("%s: write i2c error\n", __func__);
 		return ret;
 	}
 	ret = stk3x3x_i2c_smbus_write_byte_data(ps_data->client, STK_WAIT_REG,
 						ps_data->wait_reg);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		pr_err("%s: write i2c error\n", __func__);
 		return ret;
 	}
+
 #ifdef STK_TUNE0
 	ps_data->psa = 0x0;
 	ps_data->psi = 0xFFFF;
 #endif
-	/*Huaqin modify for als by zhuqiang at 2018/10/24 start*/
+
 	if (strstr(mdss_mdp_panel, "hx83112a")) {
 		lcm_flags = 1;
 	}
-	/*Huaqin modify for als by zhuqiang at 2018/10/24 end*/
-/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 start*/
+
 #ifdef CTTRACKING
 	ps_data->ps_thd_update = false;
 #endif
-	/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 end*/
+
 	stk3x3x_set_ps_thd_h(ps_data, ps_data->ps_thd_h);
 	stk3x3x_set_ps_thd_l(ps_data, ps_data->ps_thd_l);
 
 	ret = stk3x3x_i2c_smbus_write_byte_data(ps_data->client, STK_INT_REG,
 						ps_data->int_reg);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		pr_err("%s: write i2c error\n", __func__);
 		return ret;
 	}
 
@@ -782,15 +752,17 @@ static int32_t stk3x3x_check_pid(struct stk3x3x_data *ps_data)
 	err = stk3x3x_i2c_read_data(ps_data->client, STK_PDT_ID_REG, 2,
 				    &value[0]);
 	if (err < 0) {
-		printk(KERN_ERR "%s: fail, ret=%d\n", __func__, err);
+		pr_err("%s: fail, ret=%d\n", __func__, err);
 		return err;
 	}
+
 	err = stk3x3x_i2c_smbus_read_byte_data(ps_data->client, 0xE0);
 	if (err < 0)
 		return err;
+
 	value[2] = err;
 
-	printk(KERN_INFO "%s: PID=0x%x, RID=0x%x, 0x90=0x%x\n", __func__,
+	pr_debug("%s: PID=0x%x, RID=0x%x, 0x90=0x%x\n", __func__,
 	       value[0], value[1], value[2]);
 	ps_data->pid = value[0];
 
@@ -811,13 +783,13 @@ static int32_t stk3x3x_software_reset(struct stk3x3x_data *ps_data)
 	r = stk3x3x_i2c_smbus_write_byte_data(ps_data->client, STK_WAIT_REG,
 					      w_reg);
 	if (r < 0) {
-		printk(KERN_ERR "%s: software reset: write i2c error, ret=%d\n",
+		pr_err("%s: software reset: write i2c error, ret=%d\n",
 		       __func__, r);
 		return r;
 	}
 	r = stk3x3x_i2c_smbus_read_byte_data(ps_data->client, STK_WAIT_REG);
 	if (w_reg != r) {
-		printk(KERN_ERR
+		pr_err(
 		       "%s: software reset: read-back value is not the same\n",
 		       __func__);
 		return -1;
@@ -826,7 +798,7 @@ static int32_t stk3x3x_software_reset(struct stk3x3x_data *ps_data)
 	r = stk3x3x_i2c_smbus_write_byte_data(ps_data->client, STK_SW_RESET_REG,
 					      0);
 	if (r < 0) {
-		printk(KERN_ERR "%s: software reset: read error after reset\n",
+		pr_err("%s: software reset: read error after reset\n",
 		       __func__);
 		return r;
 	}
@@ -845,7 +817,7 @@ static int32_t stk3x3x_set_als_thd_l(struct stk3x3x_data *ps_data,
 	ret = stk3x3x_i2c_write_data(ps_data->client, STK_THDL1_ALS_REG, 2,
 				     val);
 	if (ret < 0)
-		printk(KERN_ERR "%s: fail, ret=%d\n", __func__, ret);
+		pr_err("%s: fail, ret=%d\n", __func__, ret);
 	return ret;
 }
 
@@ -859,7 +831,7 @@ static int32_t stk3x3x_set_als_thd_h(struct stk3x3x_data *ps_data,
 	ret = stk3x3x_i2c_write_data(ps_data->client, STK_THDH1_ALS_REG, 2,
 				     val);
 	if (ret < 0)
-		printk(KERN_ERR "%s: fail, ret=%d\n", __func__, ret);
+		pr_err("%s: fail, ret=%d\n", __func__, ret);
 	return ret;
 }
 
@@ -872,7 +844,7 @@ static int32_t stk3x3x_set_ps_thd_l(struct stk3x3x_data *ps_data,
 	val[1] = thd_l & 0x00FF;
 	ret = stk3x3x_i2c_write_data(ps_data->client, STK_THDL1_PS_REG, 2, val);
 	if (ret < 0)
-		printk(KERN_ERR "%s: fail, ret=%d\n", __func__, ret);
+		pr_err("%s: fail, ret=%d\n", __func__, ret);
 	return ret;
 }
 static int32_t stk3x3x_set_ps_thd_h(struct stk3x3x_data *ps_data,
@@ -884,7 +856,7 @@ static int32_t stk3x3x_set_ps_thd_h(struct stk3x3x_data *ps_data,
 	val[1] = thd_h & 0x00FF;
 	ret = stk3x3x_i2c_write_data(ps_data->client, STK_THDH1_PS_REG, 2, val);
 	if (ret < 0)
-		printk(KERN_ERR "%s: fail, ret=%d\n", __func__, ret);
+		pr_err("%s: fail, ret=%d\n", __func__, ret);
 	return ret;
 }
 
@@ -895,7 +867,7 @@ static uint32_t stk3x3x_get_ps_reading(struct stk3x3x_data *ps_data)
 	err = stk3x3x_i2c_read_data(ps_data->client, STK_DATA1_PS_REG, 2,
 				    &value[0]);
 	if (err < 0) {
-		printk(KERN_ERR "%s: fail, ret=%d\n", __func__, err);
+		pr_err("%s: fail, ret=%d\n", __func__, err);
 		return err;
 	}
 	return ((value[0] << 8) | value[1]);
@@ -915,7 +887,7 @@ static int32_t stk3x3x_set_flag(struct stk3x3x_data *ps_data,
 	ret = stk3x3x_i2c_smbus_write_byte_data(ps_data->client, STK_FLAG_REG,
 						w_flag);
 	if (ret < 0)
-		printk(KERN_ERR "%s: fail, ret=%d\n", __func__, ret);
+		pr_err("%s: fail, ret=%d\n", __func__, ret);
 	return ret;
 }
 
@@ -924,7 +896,7 @@ static int32_t stk3x3x_get_flag(struct stk3x3x_data *ps_data)
 	int ret;
 	ret = stk3x3x_i2c_smbus_read_byte_data(ps_data->client, STK_FLAG_REG);
 	if (ret < 0)
-		printk(KERN_ERR "%s: fail, ret=%d\n", __func__, ret);
+		pr_err("%s: fail, ret=%d\n", __func__, ret);
 	return ret;
 }
 
@@ -934,7 +906,7 @@ static int32_t stk3x3x_set_state(struct stk3x3x_data *ps_data, uint8_t state)
 	ret = stk3x3x_i2c_smbus_write_byte_data(ps_data->client, STK_STATE_REG,
 						state);
 	if (ret < 0)
-		printk(KERN_ERR "%s: fail, ret=%d\n", __func__, ret);
+		pr_err("%s: fail, ret=%d\n", __func__, ret);
 	return ret;
 }
 
@@ -943,31 +915,22 @@ static int32_t stk3x3x_get_state(struct stk3x3x_data *ps_data)
 	int ret;
 	ret = stk3x3x_i2c_smbus_read_byte_data(ps_data->client, STK_STATE_REG);
 	if (ret < 0)
-		printk(KERN_ERR "%s: fail, ret=%d\n", __func__, ret);
+		pr_err("%s: fail, ret=%d\n", __func__, ret);
 	return ret;
 }
 
 static void stk_ps_report(struct stk3x3x_data *ps_data, int nf)
 {
-	/*
-#ifdef QUALCOMM_PLATFORM
-	ktime_t	timestamp = ktime_get_boottime();
-#endif
-*/
 	ps_data->ps_distance_last = nf;
-	printk(KERN_ERR "%s:ps_distance_last = %d\n", __func__, nf);
+	pr_err("%s:ps_distance_last = %d\n", __func__, nf);
 	input_report_abs(ps_data->ps_input_dev, ABS_DISTANCE, nf);
 #ifdef QUALCOMM_PLATFORM
-	/*	input_event(ps_data->ps_input_dev, EV_SYN, SYN_TIME_SEC, ktime_to_timespec(timestamp).tv_sec);
-	input_event(ps_data->ps_input_dev, EV_SYN, SYN_TIME_NSEC, ktime_to_timespec(timestamp).tv_nsec);
-*/
 	input_event(ps_data->ps_input_dev, EV_SYN, SYN_REPORT, 0);
 #endif
 	input_sync(ps_data->ps_input_dev);
 	__pm_wakeup_event(ps_data->ps_wakelock, 3 * HZ);
 }
 
-/* Huaqin add  for 1250689 by zhuqiang 2018/11/12 start */
 static void stk_als_report(struct stk3x3x_data *ps_data, int als)
 {
 	static uint32_t cnt = 0;
@@ -976,9 +939,8 @@ static void stk_als_report(struct stk3x3x_data *ps_data, int als)
 	ps_data->als_lux_last = als;
 	input_report_abs(ps_data->als_input_dev, ABS_MISC, als);
 	input_sync(ps_data->als_input_dev);
-	//printk(KERN_INFO "%s: als input event %d lux\n",__func__, als);
+	pr_debug("%s: als input event %d lux\n",__func__, als);
 }
-/* Huaqin add  for 1250689 by zhuqiang 2018/11/12 end */
 
 static int32_t stk3x3x_enable_ps(struct stk3x3x_data *ps_data, uint8_t enable,
 				 uint8_t validate_reg)
@@ -989,10 +951,9 @@ static int32_t stk3x3x_enable_ps(struct stk3x3x_data *ps_data, uint8_t enable,
 	uint32_t reading;
 	int32_t near_far_state;
 
-	/* Huaqin add for ZQL1650-1072 by zhuqiang at 2018/04/23 start*/
 	if (!enable)
 		ps_status_flag = 0;
-/* Huaqin add for ZQL1650-1072 by zhuqiang at 2018/04/23 end*/
+
 #ifdef STK_QUALCOMM_POWER_CTRL
 	if (enable) {
 		ret = stk3x3x_device_ctl(ps_data, enable);
@@ -1005,7 +966,7 @@ static int32_t stk3x3x_enable_ps(struct stk3x3x_data *ps_data, uint8_t enable,
 	if (validate_reg) {
 		ret = stk3x3x_validate_n_handle(ps_data->client);
 		if (ret < 0)
-			printk(KERN_ERR "stk3x3x_validate_n_handle fail: %d\n",
+			pr_err("stk3x3x_validate_n_handle fail: %d\n",
 			       ret);
 	}
 #endif /* #ifdef STK_CHK_REG */
@@ -1015,7 +976,6 @@ static int32_t stk3x3x_enable_ps(struct stk3x3x_data *ps_data, uint8_t enable,
 		return 0;
 
 #ifdef STK_TUNE0
-/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 start*/
 #ifndef CTTRACKING
 	if (!(ps_data->psi_set) && !enable) {
 		hrtimer_cancel(&ps_data->ps_tune0_timer);
@@ -1026,16 +986,16 @@ static int32_t stk3x3x_enable_ps(struct stk3x3x_data *ps_data, uint8_t enable,
 	if (ps_data->first_boot == true) {
 		ps_data->first_boot = false;
 	}
-	/* Huaqin add  for P-sensor by zhuqiang 2018/11/07 start */
+
 	if (enable) {
 		ps_data->ps_thd_h = ps_data->ps_high_thd_boot;
 		ps_data->ps_thd_l = ps_data->ps_low_thd_boot;
 		stk3x3x_set_ps_thd_h(ps_data, ps_data->ps_thd_h);
 		stk3x3x_set_ps_thd_l(ps_data, ps_data->ps_thd_l);
-		printk(KERN_INFO "%s: HT=%d, LT=%d\n", __func__,
+		pr_debug("%s: HT=%d, LT=%d\n", __func__,
 		       ps_data->ps_thd_h, ps_data->ps_thd_l);
 	}
-	/* Huaqin add  for P-sensor by zhuqiang 2018/11/07 end */
+
 	ret = stk3x3x_get_state(ps_data);
 	if (ret < 0)
 		return ret;
@@ -1057,9 +1017,7 @@ static int32_t stk3x3x_enable_ps(struct stk3x3x_data *ps_data, uint8_t enable,
 #ifdef STK_TUNE0
 #ifdef CTTRACKING
 		ps_data->ps_thd_update = false;
-		/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/27 start*/
 		ps_data->skin_near = true;
-		/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/27 end*/
 #endif
 #ifdef CALI_PS_EVERY_TIME
 		ps_data->psi_set = 0;
@@ -1079,8 +1037,7 @@ static int32_t stk3x3x_enable_ps(struct stk3x3x_data *ps_data, uint8_t enable,
 		if (!validate_reg) {
 			reading = stk3x3x_get_ps_reading(ps_data);
 			stk_ps_report(ps_data, 1);
-			printk(KERN_INFO
-			       "%s: force report ps input event=1, ps code = %d\n",
+			pr_debug("%s: force report ps input event=1, ps code = %d\n",
 			       __func__, reading);
 		} else
 #endif /* #ifdef STK_CHK_REG */
@@ -1089,19 +1046,12 @@ static int32_t stk3x3x_enable_ps(struct stk3x3x_data *ps_data, uint8_t enable,
 			reading = stk3x3x_get_ps_reading(ps_data);
 			if (reading < 0)
 				return reading;
-			/*Huaqin modify for TT1233135 by zhuqiang at 2018/10/10 start*/
-			printk(KERN_INFO "line=%d,func=%s: PS=%d, THDH=%d\n",
+
+			pr_debug("line=%d,func=%s: PS=%d, THDH=%d\n",
 			       __LINE__, __func__, reading, ps_data->ps_thd_h);
 			near_far_state = (reading >= ps_data->ps_thd_h) ? 0 : 1;
-#if 0
-			ret = stk3x3x_get_flag(ps_data);
-			if (ret < 0)
-				return ret;
-			near_far_state = ret & STK_FLG_NF_MASK;
-#endif
-			/*Huaqin modify for TT1233135 by zhuqiang at 2018/10/10 end*/
 			stk_ps_report(ps_data, near_far_state);
-			printk(KERN_INFO "%s: ps input event=%d, ps=%d\n",
+			pr_debug("%s: ps input event=%d, ps=%d\n",
 			       __func__, near_far_state, reading);
 		}
 #ifdef STK_POLL_PS
@@ -1116,25 +1066,10 @@ static int32_t stk3x3x_enable_ps(struct stk3x3x_data *ps_data, uint8_t enable,
 			enable_irq(ps_data->irq);
 #endif /* #ifndef STK_POLL_PS */
 		ps_data->ps_enabled = true;
-		/* Huaqin add  for P-sensor by zhuqiang 2018/11/07 start */
-		/*
-	#ifdef CALI_PS_EVERY_TIME
-		if(ps_data->boot_cali == 1 && ps_data->ps_low_thd_boot < 1000 )
-		{
-			ps_data->ps_thd_h = ps_data->ps_high_thd_boot;
-			ps_data->ps_thd_l = ps_data->ps_low_thd_boot;
-		}
-		else
-	#endif
-
-		printk(KERN_INFO "%s: HT=%d, LT=%d\n", __func__, ps_data->ps_thd_h, ps_data->ps_thd_l);
-*/
-		/* Huaqin add  for P-sensor by zhuqiang 2018/11/07 end */
 	} else {
 #ifdef CTTRACKING
 		hrtimer_cancel(&ps_data->ps_tune0_timer);
 #endif
-/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 end*/
 #ifdef STK_POLL_PS
 		hrtimer_cancel(&ps_data->ps_timer);
 		cancel_work_sync(&ps_data->stk_ps_work);
@@ -1238,10 +1173,10 @@ static int32_t stk3x3x_get_als_reading(struct stk3x3x_data *ps_data)
 	ret = stk3x3x_i2c_read_data(ps_data->client, STK_DATA1_ALS_REG, 2,
 				    &value[0]);
 	if (ret < 0) {
-		printk(KERN_ERR "%s fail, ret=0x%x", __func__, ret);
+		pr_err("%s fail, ret=0x%x", __func__, ret);
 		return ret;
 	}
-	/*Huaqin modify for als by zhuqiang at 2018/08/28 start*/
+
 	ret = stk3x3x_i2c_read_data(ps_data->client, STK_DATA1_R_REG, 2,
 				    &value[0]);
 	als_data = (value[0] << 8) | value[1];
@@ -1251,16 +1186,16 @@ static int32_t stk3x3x_get_als_reading(struct stk3x3x_data *ps_data)
 	ret = stk3x3x_i2c_read_data(ps_data->client, STK_DATA1_B_REG, 2,
 				    &value[0]);
 	als_data += (value[0] << 8) | value[1];
-	/*Huaqin modify for als by zhuqiang at 2018/08/28 end*/
+
 	if (ret < 0) {
-		printk(KERN_ERR "%s fail, ret=0x%x", __func__, ret);
+		pr_err("%s fail, ret=0x%x", __func__, ret);
 		return ret;
 	}
 
 	ret = stk3x3x_i2c_read_data(ps_data->client, STK_DATA1_C_REG, 2,
 				    &value[0]);
 	if (ret < 0) {
-		printk(KERN_ERR "%s fail, ret=0x%x", __func__, ret);
+		pr_err("%s fail, ret=0x%x", __func__, ret);
 		return ret;
 	}
 	ps_data->c_code_last = (value[0] << 8) | value[1];
@@ -1295,47 +1230,47 @@ static int stk3x3x_chk_reg_valid(struct stk3x3x_data *ps_data)
 	err = stk3x3x_i2c_read_data(ps_data->client, STK_PSCTRL_REG, 9,
 				    &value[0]);
 	if (err < 0) {
-		printk(KERN_ERR "%s: fail, ret=%d\n", __func__, err);
+		pr_err("%s: fail, ret=%d\n", __func__, err);
 		return err;
 	}
 
 	if (value[0] != ps_data->psctrl_reg) {
-		printk(KERN_ERR "%s: invalid reg 0x01=0x%2x\n", __func__,
+		pr_err("%s: invalid reg 0x01=0x%2x\n", __func__,
 		       value[0]);
 		return 0xFF;
 	}
 	if (value[2] != ps_data->ledctrl_reg) {
-		printk(KERN_ERR "%s: invalid reg 0x03=0x%2x\n", __func__,
+		pr_err("%s: invalid reg 0x03=0x%2x\n", __func__,
 		       value[2]);
 		return 0xFF;
 	}
 	if (value[3] != ps_data->int_reg) {
-		printk(KERN_ERR "%s: invalid reg 0x04=0x%2x\n", __func__,
+		pr_err("%s: invalid reg 0x04=0x%2x\n", __func__,
 		       value[3]);
 		return 0xFF;
 	}
 	if (value[4] != ps_data->wait_reg) {
-		printk(KERN_ERR "%s: invalid reg 0x05=0x%2x\n", __func__,
+		pr_err("%s: invalid reg 0x05=0x%2x\n", __func__,
 		       value[4]);
 		return 0xFF;
 	}
 	if (value[5] != ((ps_data->ps_thd_h & 0xFF00) >> 8)) {
-		printk(KERN_ERR "%s: invalid reg 0x06=0x%2x\n", __func__,
+		pr_err("%s: invalid reg 0x06=0x%2x\n", __func__,
 		       value[5]);
 		return 0xFF;
 	}
 	if (value[6] != (ps_data->ps_thd_h & 0x00FF)) {
-		printk(KERN_ERR "%s: invalid reg 0x07=0x%2x\n", __func__,
+		pr_err("%s: invalid reg 0x07=0x%2x\n", __func__,
 		       value[6]);
 		return 0xFF;
 	}
 	if (value[7] != ((ps_data->ps_thd_l & 0xFF00) >> 8)) {
-		printk(KERN_ERR "%s: invalid reg 0x08=0x%2x\n", __func__,
+		pr_err("%s: invalid reg 0x08=0x%2x\n", __func__,
 		       value[7]);
 		return 0xFF;
 	}
 	if (value[8] != (ps_data->ps_thd_l & 0x00FF)) {
-		printk(KERN_ERR "%s: invalid reg 0x09=0x%2x\n", __func__,
+		pr_err("%s: invalid reg 0x09=0x%2x\n", __func__,
 		       value[8]);
 		return 0xFF;
 	}
@@ -1350,12 +1285,12 @@ static int stk3x3x_validate_n_handle(struct i2c_client *client)
 
 	err = stk3x3x_chk_reg_valid(ps_data);
 	if (err < 0) {
-		printk(KERN_ERR "stk3x3x_chk_reg_valid fail: %d\n", err);
+		pr_err("stk3x3x_chk_reg_valid fail: %d\n", err);
 		return err;
 	}
 
 	if (err == 0xFF) {
-		printk(KERN_ERR "%s: Re-init chip\n", __func__);
+		pr_err("%s: Re-init chip\n", __func__);
 		err = stk3x3x_software_reset(ps_data);
 		if (err < 0)
 			return err;
@@ -1363,8 +1298,6 @@ static int stk3x3x_validate_n_handle(struct i2c_client *client)
 		if (err < 0)
 			return err;
 
-		//ps_data->psa = 0;
-		//ps_data->psi = 0xFFFF;
 		stk3x3x_set_ps_thd_h(ps_data, ps_data->ps_thd_h);
 		stk3x3x_set_ps_thd_l(ps_data, ps_data->ps_thd_l);
 #ifdef STK_ALS_FIR
@@ -1389,7 +1322,7 @@ static ssize_t stk_als_code_show(struct device *dev,
 	ret = stk3x3x_i2c_read_data(ps_data->client, STK_DATA1_ALS_REG, 2,
 				    &value[0]);
 	if (ret < 0) {
-		printk(KERN_ERR "%s fail, ret=0x%x", __func__, ret);
+		pr_err("%s fail, ret=0x%x", __func__, ret);
 		return ret;
 	}
 	reading = (value[0] << 8) | value[1];
@@ -1435,15 +1368,17 @@ static ssize_t stk_als_enable_store(struct device *dev,
 {
 	struct stk3x3x_data *ps_data = dev_get_drvdata(dev);
 	uint8_t en;
+
 	if (sysfs_streq(buf, "1"))
 		en = 1;
 	else if (sysfs_streq(buf, "0"))
 		en = 0;
 	else {
-		printk(KERN_ERR "%s, invalid value %d\n", __func__, *buf);
+		pr_err("%s: invalid value: %s\n", __func__, *buf);
 		return -EINVAL;
 	}
-	printk(KERN_INFO "%s: Enable ALS : %d\n", __func__, en);
+
+	pr_debug("%s: Enable ALS: %d\n", __func__, en);
 	mutex_lock(&ps_data->io_lock);
 	stk3x3x_enable_als(ps_data, en);
 	mutex_unlock(&ps_data->io_lock);
@@ -1473,7 +1408,7 @@ static ssize_t stk_als_lux_store(struct device *dev,
 	int ret;
 	ret = kstrtoul(buf, 16, &value);
 	if (ret < 0) {
-		printk(KERN_ERR "%s:kstrtoul failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoul failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
@@ -1502,7 +1437,7 @@ static ssize_t stk_als_transmittance_store(struct device *dev,
 	int ret;
 	ret = kstrtoul(buf, 10, &value);
 	if (ret < 0) {
-		printk(KERN_ERR "%s:kstrtoul failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoul failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
@@ -1568,9 +1503,9 @@ static ssize_t stk_als_firlen_show(struct device *dev,
 	struct stk3x3x_data *ps_data = dev_get_drvdata(dev);
 	int len = atomic_read(&ps_data->firlength);
 
-	printk(KERN_INFO "%s: len = %2d, idx = %2d\n", __func__, len,
+	pr_debug("%s: len = %2d, idx = %2d\n", __func__, len,
 	       ps_data->fir.idx);
-	printk(KERN_INFO "%s: sum = %5d, ave = %5d\n", __func__,
+	pr_debug("%s: sum = %5d, ave = %5d\n", __func__,
 	       ps_data->fir.sum, ps_data->fir.sum / len);
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", len);
@@ -1585,13 +1520,13 @@ static ssize_t stk_als_firlen_store(struct device *dev,
 	struct stk3x3x_data *ps_data = dev_get_drvdata(dev);
 	ret = kstrtoull(buf, 10, &value);
 	if (ret < 0) {
-		printk(KERN_ERR "%s:kstrtoull failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoull failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
 
 	if (value > MAX_FIR_LEN) {
-		printk(KERN_ERR "%s: firlen exceed maximum filter length\n",
+		pr_err("%s: firlen exceed maximum filter length\n",
 		       __func__);
 	} else if (value < 1) {
 		atomic_set(&ps_data->firlength, 1);
@@ -1658,10 +1593,10 @@ static ssize_t stk_ps_enable_store(struct device *dev,
 	else if (sysfs_streq(buf, "0"))
 		en = 0;
 	else {
-		printk(KERN_ERR "%s, invalid value %d\n", __func__, *buf);
+		pr_err("%s, invalid value %d\n", __func__, *buf);
 		return -EINVAL;
 	}
-	printk(KERN_INFO "%s: Enable PS : %d\n", __func__, en);
+	pr_debug("%s: Enable PS : %d\n", __func__, en);
 	mutex_lock(&ps_data->io_lock);
 	stk3x3x_enable_ps(ps_data, en, 0);
 	mutex_unlock(&ps_data->io_lock);
@@ -1680,7 +1615,7 @@ static ssize_t stk_ps_offset_show(struct device *dev,
 	ret = stk3x3x_i2c_read_data(ps_data->client, STK_DATA1_OFFSET_REG, 2,
 				    &value[0]);
 	if (ret < 0) {
-		printk(KERN_ERR "%s fail, ret=0x%x", __func__, ret);
+		pr_err("%s fail, ret=0x%x", __func__, ret);
 		return ret;
 	}
 	word_data = (value[0] << 8) | value[1];
@@ -1699,12 +1634,12 @@ static ssize_t stk_ps_offset_store(struct device *dev,
 
 	ret = kstrtoul(buf, 10, &offset);
 	if (ret < 0) {
-		printk(KERN_ERR "%s:kstrtoul failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoul failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
 	if (offset > 65535) {
-		printk(KERN_ERR "%s: invalid value, offset=%ld\n", __func__,
+		pr_err("%s: invalid value, offset=%ld\n", __func__,
 		       offset);
 		return -EINVAL;
 	}
@@ -1714,7 +1649,7 @@ static ssize_t stk_ps_offset_store(struct device *dev,
 	ret = stk3x3x_i2c_write_data(ps_data->client, STK_DATA1_OFFSET_REG, 2,
 				     val);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		pr_err("%s: write i2c error\n", __func__);
 		return ret;
 	}
 
@@ -1783,7 +1718,7 @@ static ssize_t stk_ps_distance_show(struct device *dev,
 		return ret;
 	dist = (ret & STK_FLG_NF_MASK) ? 1 : 0;
 	stk_ps_report(ps_data, dist);
-	printk(KERN_INFO "%s: ps input event=%d\n", __func__, dist);
+	pr_debug("%s: ps input event=%d\n", __func__, dist);
 	return scnprintf(buf, PAGE_SIZE, "%d\n", dist);
 }
 
@@ -1797,12 +1732,12 @@ static ssize_t stk_ps_distance_store(struct device *dev,
 
 	ret = kstrtoul(buf, 10, &value);
 	if (ret < 0) {
-		printk(KERN_ERR "%s:kstrtoul failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoul failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
 	stk_ps_report(ps_data, value);
-	printk(KERN_INFO "%s: ps input event=%d\n", __func__, (int)value);
+	pr_debug("%s: ps input event=%d\n", __func__, (int)value);
 
 	return size;
 }
@@ -1816,14 +1751,14 @@ static ssize_t stk_ps_code_thd_l_show(struct device *dev,
 	ps_thd_l1_reg = stk3x3x_i2c_smbus_read_byte_data(ps_data->client,
 							 STK_THDL1_PS_REG);
 	if (ps_thd_l1_reg < 0) {
-		printk(KERN_ERR "%s fail, err=0x%x", __func__, ps_thd_l1_reg);
+		pr_err("%s fail, err=0x%x", __func__, ps_thd_l1_reg);
 		return -EINVAL;
 	}
 
 	ps_thd_l2_reg = stk3x3x_i2c_smbus_read_byte_data(ps_data->client,
 							 STK_THDL2_PS_REG);
 	if (ps_thd_l2_reg < 0) {
-		printk(KERN_ERR "%s fail, err=0x%x", __func__, ps_thd_l2_reg);
+		pr_err("%s fail, err=0x%x", __func__, ps_thd_l2_reg);
 		return -EINVAL;
 	}
 	ps_thd_l1_reg = ps_thd_l1_reg << 8 | ps_thd_l2_reg;
@@ -1839,7 +1774,7 @@ static ssize_t stk_ps_code_thd_l_store(struct device *dev,
 	int ret;
 	ret = kstrtoul(buf, 10, &value);
 	if (ret < 0) {
-		printk(KERN_ERR "%s:kstrtoul failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoul failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
@@ -1857,14 +1792,14 @@ static ssize_t stk_ps_code_thd_h_show(struct device *dev,
 	ps_thd_h1_reg = stk3x3x_i2c_smbus_read_byte_data(ps_data->client,
 							 STK_THDH1_PS_REG);
 	if (ps_thd_h1_reg < 0) {
-		printk(KERN_ERR "%s fail, err=0x%x", __func__, ps_thd_h1_reg);
+		pr_err("%s fail, err=0x%x", __func__, ps_thd_h1_reg);
 		return -EINVAL;
 	}
 
 	ps_thd_h2_reg = stk3x3x_i2c_smbus_read_byte_data(ps_data->client,
 							 STK_THDH2_PS_REG);
 	if (ps_thd_h2_reg < 0) {
-		printk(KERN_ERR "%s fail, err=0x%x", __func__, ps_thd_h2_reg);
+		pr_err("%s fail, err=0x%x", __func__, ps_thd_h2_reg);
 		return -EINVAL;
 	}
 	ps_thd_h1_reg = ps_thd_h1_reg << 8 | ps_thd_h2_reg;
@@ -1881,7 +1816,7 @@ static ssize_t stk_ps_code_thd_h_store(struct device *dev,
 	int ret;
 	ret = kstrtoul(buf, 10, &value);
 	if (ret < 0) {
-		printk(KERN_ERR "%s:kstrtoul failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoul failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
@@ -1903,11 +1838,11 @@ static ssize_t stk_all_reg_show(struct device *dev,
 		ps_reg[cnt] = stk3x3x_i2c_smbus_read_byte_data(ps_data->client,
 							       (cnt));
 		if (ps_reg[cnt] < 0) {
-			printk(KERN_ERR "%s fail, ret=%d", __func__,
+			pr_err("%s fail, ret=%d", __func__,
 			       ps_reg[cnt]);
 			return -EINVAL;
 		} else {
-			printk(KERN_INFO "reg[0x%2X]=0x%2X\n", cnt,
+			pr_debug("reg[0x%2X]=0x%2X\n", cnt,
 			       ps_reg[cnt]);
 			len += scnprintf(buf + len, PAGE_SIZE - len,
 					 "[%2X]%2X,", cnt, ps_reg[cnt]);
@@ -1916,37 +1851,31 @@ static ssize_t stk_all_reg_show(struct device *dev,
 	ps_reg[cnt] = stk3x3x_i2c_smbus_read_byte_data(ps_data->client,
 						       STK_PDT_ID_REG);
 	if (ps_reg[cnt] < 0) {
-		printk(KERN_ERR "%s fail, ret=%d", __func__, ps_reg[cnt]);
+		pr_err("%s fail, ret=%d", __func__, ps_reg[cnt]);
 		return -EINVAL;
 	}
-	printk(KERN_INFO "reg[0x%x]=0x%2X\n", STK_PDT_ID_REG, ps_reg[cnt]);
+	pr_debug("reg[0x%x]=0x%2X\n", STK_PDT_ID_REG, ps_reg[cnt]);
 
 	cnt++;
 	ps_reg[cnt] = stk3x3x_i2c_smbus_read_byte_data(ps_data->client,
 						       STK_RSRVD_REG);
 	if (ps_reg[cnt] < 0) {
-		printk(KERN_ERR "%s fail, ret=%d", __func__, ps_reg[cnt]);
+		pr_err("%s fail, ret=%d", __func__, ps_reg[cnt]);
 		return -EINVAL;
 	}
-	printk(KERN_INFO "reg[0x%x]=0x%2X\n", STK_RSRVD_REG, ps_reg[cnt]);
+	pr_debug("reg[0x%x]=0x%2X\n", STK_RSRVD_REG, ps_reg[cnt]);
 
 	cnt++;
 	ps_reg[cnt] = stk3x3x_i2c_smbus_read_byte_data(ps_data->client, 0xE0);
 	if (ps_reg[cnt] < 0) {
-		printk(KERN_ERR "%s fail, ret=%d", __func__, ps_reg[cnt]);
+		pr_err("%s fail, ret=%d", __func__, ps_reg[cnt]);
 		return -EINVAL;
 	}
-	printk(KERN_INFO "reg[0xE0]=0x%2X\n", ps_reg[cnt]);
+	pr_debug("reg[0xE0]=0x%2X\n", ps_reg[cnt]);
 	len += scnprintf(buf + len, PAGE_SIZE - len,
 			 "[3E]%2X,[3F]%2X,[E0]%2X\n", ps_reg[cnt - 2],
 			 ps_reg[cnt - 1], ps_reg[cnt]);
 	return len;
-	/*
-    return scnprintf(buf, PAGE_SIZE, "[0]%2X [1]%2X [2]%2X [3]%2X [4]%2X [5]%2X [6/7 HTHD]%2X,%2X [8/9 LTHD]%2X, %2X [A]%2X [B]%2X [C]%2X [D]%2X [E/F Aoff]%2X,%2X,[10]%2X [11/12 PS]%2X,%2X [13]%2X [14]%2X [15/16 Foff]%2X,%2X [17]%2X [18]%2X [3E]%2X [3F]%2X\n",
-		ps_reg[0], ps_reg[1], ps_reg[2], ps_reg[3], ps_reg[4], ps_reg[5], ps_reg[6], ps_reg[7], ps_reg[8],
-		ps_reg[9], ps_reg[10], ps_reg[11], ps_reg[12], ps_reg[13], ps_reg[14], ps_reg[15], ps_reg[16], ps_reg[17],
-		ps_reg[18], ps_reg[19], ps_reg[20], ps_reg[21], ps_reg[22], ps_reg[23], ps_reg[24], ps_reg[25], ps_reg[26]);
-		*/
 }
 
 static ssize_t stk_status_show(struct device *dev,
@@ -1959,29 +1888,29 @@ static ssize_t stk_status_show(struct device *dev,
 		ps_reg[cnt] = stk3x3x_i2c_smbus_read_byte_data(ps_data->client,
 							       (cnt));
 		if (ps_reg[cnt] < 0) {
-			printk(KERN_ERR "%s fail, ret=%d", __func__,
+			pr_err("%s fail, ret=%d", __func__,
 			       ps_reg[cnt]);
 			return -EINVAL;
 		} else {
-			printk(KERN_INFO "reg[0x%2X]=0x%2X\n", cnt,
+			pr_debug("reg[0x%2X]=0x%2X\n", cnt,
 			       ps_reg[cnt]);
 		}
 	}
 	ps_reg[cnt] = stk3x3x_i2c_smbus_read_byte_data(ps_data->client,
 						       STK_PDT_ID_REG);
 	if (ps_reg[cnt] < 0) {
-		printk(KERN_ERR "%s fail, ret=%d", __func__, ps_reg[cnt]);
+		pr_err("%s fail, ret=%d", __func__, ps_reg[cnt]);
 		return -EINVAL;
 	}
-	printk(KERN_INFO "reg[0x%x]=0x%2X\n", STK_PDT_ID_REG, ps_reg[cnt]);
+	pr_debug("reg[0x%x]=0x%2X\n", STK_PDT_ID_REG, ps_reg[cnt]);
 	cnt++;
 	ps_reg[cnt] = stk3x3x_i2c_smbus_read_byte_data(ps_data->client,
 						       STK_RSRVD_REG);
 	if (ps_reg[cnt] < 0) {
-		printk(KERN_ERR "%s fail, ret=%d", __func__, ps_reg[cnt]);
+		pr_err("%s fail, ret=%d", __func__, ps_reg[cnt]);
 		return -EINVAL;
 	}
-	printk(KERN_INFO "reg[0x%x]=0x%2X\n", STK_RSRVD_REG, ps_reg[cnt]);
+	pr_debug("reg[0x%x]=0x%2X\n", STK_RSRVD_REG, ps_reg[cnt]);
 
 	return scnprintf(
 		buf, PAGE_SIZE,
@@ -2010,12 +1939,11 @@ static ssize_t stk_recv_store(struct device *dev, struct device_attribute *attr,
 	struct stk3x3x_data *ps_data = dev_get_drvdata(dev);
 
 	if ((ret = kstrtoul(buf, 16, &value)) < 0) {
-		printk(KERN_ERR "%s:kstrtoul failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoul failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
 	recv_data = stk3x3x_i2c_smbus_read_byte_data(ps_data->client, value);
-	//	printk("%s: reg 0x%x=0x%x\n", __func__, (int)value, recv_data);
 	atomic_set(&ps_data->recv_reg, recv_data);
 	return size;
 }
@@ -2037,21 +1965,21 @@ static ssize_t stk_send_store(struct device *dev, struct device_attribute *attr,
 	for (i = 0; i < 2; i++)
 		token[i] = strsep((char **)&buf, " ");
 	if ((ret = kstrtoul(token[0], 16, (unsigned long *)&(addr))) < 0) {
-		printk(KERN_ERR "%s:kstrtoul failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoul failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
 	if ((ret = kstrtoul(token[1], 16, (unsigned long *)&(cmd))) < 0) {
-		printk(KERN_ERR "%s:kstrtoul failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoul failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
-	printk(KERN_INFO "%s: write reg 0x%x=0x%x\n", __func__, addr, cmd);
+	pr_debug("%s: write reg 0x%x=0x%x\n", __func__, addr, cmd);
 
 	ret = stk3x3x_i2c_smbus_write_byte_data(
 		ps_data->client, (unsigned char)addr, (unsigned char)cmd);
 	if (0 != ret) {
-		printk(KERN_ERR "%s: stk3x3x_i2c_smbus_write_byte_data fail\n",
+		pr_err("%s: stk3x3x_i2c_smbus_write_byte_data fail\n",
 		       __func__);
 		return ret;
 	}
@@ -2071,22 +1999,22 @@ static ssize_t stk_ps_cali_show(struct device *dev,
 
 	ret = stk3x3x_i2c_read_data(ps_data->client, 0x20, 2, &value[0]);
 	if (ret < 0) {
-		printk(KERN_ERR "%s fail, ret=0x%x", __func__, ret);
+		pr_err("%s fail, ret=0x%x", __func__, ret);
 		return ret;
 	}
 	word_data = (value[0] << 8) | value[1];
 
 	ret = stk3x3x_i2c_read_data(ps_data->client, 0x22, 2, &value[0]);
 	if (ret < 0) {
-		printk(KERN_ERR "%s fail, ret=0x%x", __func__, ret);
+		pr_err("%s fail, ret=0x%x", __func__, ret);
 		return ret;
 	}
 	word_data += ((value[0] << 8) | value[1]);
 
-	printk("%s: psi_set=%d, psa=%d,psi=%d, word_data=%d\n", __func__,
+	pr_debug("%s: psi_set=%d, psa=%d,psi=%d, word_data=%d\n", __func__,
 	       ps_data->psi_set, ps_data->psa, ps_data->psi, word_data);
 #ifdef CALI_PS_EVERY_TIME
-	printk("%s: boot HT=%d, LT=%d\n", __func__, ps_data->ps_high_thd_boot,
+	pr_debug("%s: boot HT=%d, LT=%d\n", __func__, ps_data->ps_high_thd_boot,
 	       ps_data->ps_low_thd_boot);
 #endif
 	return 0;
@@ -2101,7 +2029,7 @@ static ssize_t stk_ps_maxdiff_store(struct device *dev,
 	int ret;
 
 	if ((ret = kstrtoul(buf, 10, &value)) < 0) {
-		printk(KERN_ERR "%s:kstrtoul failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoul failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
@@ -2125,7 +2053,7 @@ static ssize_t stk_ps_ltnct_store(struct device *dev,
 	int ret;
 
 	if ((ret = kstrtoul(buf, 10, &value)) < 0) {
-		printk(KERN_ERR "%s:kstrtoul failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoul failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
@@ -2149,7 +2077,7 @@ static ssize_t stk_ps_htnct_store(struct device *dev,
 	int ret;
 
 	if ((ret = kstrtoul(buf, 10, &value)) < 0) {
-		printk(KERN_ERR "%s:kstrtoul failed, ret=0x%x\n", __func__,
+		pr_err("%s:kstrtoul failed, ret=0x%x\n", __func__,
 		       ret);
 		return ret;
 	}
@@ -2265,13 +2193,13 @@ static int stk_ps_val(struct stk3x3x_data *ps_data)
 
 	ret = stk3x3x_i2c_read_data(ps_data->client, 0xA7, 1, &ps_invalid_flag);
 	if (ret < 0) {
-		printk(KERN_ERR "%s fail, ret=0x%x", __func__, ret);
+		pr_err("%s fail, ret=0x%x", __func__, ret);
 		return ret;
 	}
 
 	ret = stk3x3x_i2c_read_data(ps_data->client, 0x34, 4, bgir_raw_data);
 	if (ret < 0) {
-		printk(KERN_ERR "%s fail, ret=0x%x", __func__, ret);
+		pr_err("%s fail, ret=0x%x", __func__, ret);
 		return ret;
 	}
 
@@ -2295,19 +2223,19 @@ static int stk_ps_tune_zero_final(struct stk3x3x_data *ps_data)
 	ret = stk3x3x_i2c_smbus_write_byte_data(ps_data->client, STK_INT_REG,
 						ps_data->int_reg);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		pr_err("%s: write i2c error\n", __func__);
 		return ret;
 	}
 
 	ret = stk3x3x_i2c_smbus_write_byte_data(ps_data->client, STK_STATE_REG,
 						0);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		pr_err("%s: write i2c error\n", __func__);
 		return ret;
 	}
 
 	if (ps_data->data_count == -1) {
-		printk(KERN_INFO "%s: exceed limit\n", __func__);
+		pr_debug("%s: exceed limit\n", __func__);
 		hrtimer_cancel(&ps_data->ps_tune0_timer);
 		return 0;
 	}
@@ -2329,7 +2257,7 @@ static int stk_ps_tune_zero_final(struct stk3x3x_data *ps_data)
 	stk3x3x_set_ps_thd_h(ps_data, ps_data->ps_thd_h);
 	stk3x3x_set_ps_thd_l(ps_data, ps_data->ps_thd_l);
 	ps_data->boot_cali = 1;
-	printk(KERN_INFO "%s: set HT=%d,LT=%d\n", __func__, ps_data->ps_thd_h,
+	pr_debug("%s: set HT=%d,LT=%d\n", __func__, ps_data->ps_thd_h,
 	       ps_data->ps_thd_l);
 	hrtimer_cancel(&ps_data->ps_tune0_timer);
 	return 0;
@@ -2350,7 +2278,7 @@ static int32_t stk_tune_zero_get_ps_data(struct stk3x3x_data *ps_data)
 	/*Huaqin modify for Sunlight mode by zhuqiang at 2018/08/29 end*/
 
 	ps_adc = stk3x3x_get_ps_reading(ps_data);
-	printk(KERN_INFO "%s: ps_adc #%d=%d\n", __func__, ps_data->data_count,
+	pr_debug("%s: ps_adc #%d=%d\n", __func__, ps_data->data_count,
 	       ps_adc);
 	if (ps_adc < 0)
 		return ps_adc;
@@ -2396,7 +2324,7 @@ static int stk_ps_tune_zero_init(struct stk3x3x_data *ps_data)
 	ret = stk3x3x_i2c_smbus_write_byte_data(ps_data->client, STK_INT_REG,
 						0);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		pr_err("%s: write i2c error\n", __func__);
 		return ret;
 	}
 
@@ -2404,7 +2332,7 @@ static int stk_ps_tune_zero_init(struct stk3x3x_data *ps_data)
 	ret = stk3x3x_i2c_smbus_write_byte_data(ps_data->client, STK_STATE_REG,
 						w_state_reg);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		pr_err("%s: write i2c error\n", __func__);
 		return ret;
 	}
 	hrtimer_start(&ps_data->ps_tune0_timer, ps_data->ps_tune0_delay,
@@ -2472,7 +2400,7 @@ static int stk_ps_tune_zero_func_fae(struct stk3x3x_data *ps_data)
 		if (status < 0)
 			return status;
 		if (!(status & STK_FLG_PSDR_MASK)) {
-			printk(KERN_INFO "%s: ps data is not ready yet\n",
+			pr_debug("%s: ps data is not ready yet\n",
 			       __func__);
 			return 0;
 		}
@@ -2480,11 +2408,11 @@ static int stk_ps_tune_zero_func_fae(struct stk3x3x_data *ps_data)
 		ret = stk3x3x_i2c_read_data(ps_data->client, 0x11, 2,
 					    &value[0]);
 		if (ret < 0) {
-			printk(KERN_ERR "%s fail, err=0x%x", __func__, ret);
+			pr_err("%s fail, err=0x%x", __func__, ret);
 			return ret;
 		}
 		word_data = (value[0] << 8) | value[1];
-		//printk(KERN_INFO "%s: ps raw data = %d,  HT=%d, LT=%d\n", __func__, word_data, ps_data->ps_thd_h, ps_data->ps_thd_l);
+		//pr_debug("%s: ps raw data = %d,  HT=%d, LT=%d\n", __func__, word_data, ps_data->ps_thd_h, ps_data->ps_thd_l);
 
 		ret = stk_ps_val(ps_data);
 		if (ret != 0) {
@@ -2492,14 +2420,12 @@ static int stk_ps_tune_zero_func_fae(struct stk3x3x_data *ps_data)
 		}
 		if (ps_data->ps_distance_last == 1) {
 			if (word_data > 0) {
-				/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/27 start*/
 				ret = stk3x3x_get_offset(ps_data, word_data);
 				ct_value = ps_data->ps_thd_h -
 					   ps_data->stk_ht_n_ct;
 				if ((word_data < ct_value) &&
 				    ((ct_value - word_data) > 2) &&
 				    (ps_data->ps_thd_update == false))
-				/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/27 end*/
 				{
 					ps_data->ps_thd_h =
 						word_data +
@@ -2511,25 +2437,14 @@ static int stk_ps_tune_zero_func_fae(struct stk3x3x_data *ps_data)
 							     ps_data->ps_thd_h);
 					stk3x3x_set_ps_thd_l(ps_data,
 							     ps_data->ps_thd_l);
-					//printk(KERN_INFO "%s: CTTRACKING set HT=%d, LT=%d\n", __func__, ps_data->ps_thd_h, ps_data->ps_thd_l);
 					ps_data->psi = word_data;
-					printk(KERN_INFO
-					       "%s: CTTRACKING update psi=%d\n",
-					       __func__, ps_data->psi);
 					if ((ps_data->ps_thd_h + 100) <
 					    (ps_data->ps_high_thd_boot)) {
-						/* Huaqin add  for P-sensor by zhuqiang 2018/11/07 start */
 						ps_data->ps_high_thd_boot =
 							word_data + STK_H_HT;
 						ps_data->ps_low_thd_boot =
 							word_data + STK_H_LT;
-						/* Huaqin add  for P-sensor by zhuqiang 2018/11/07 end */
 						ps_data->boot_cali = 1;
-						printk(KERN_INFO
-						       "%s: update boot HT=%d, LT=%d\n",
-						       __func__,
-						       ps_data->ps_high_thd_boot,
-						       ps_data->ps_low_thd_boot);
 					}
 				}
 			}
@@ -2543,22 +2458,21 @@ static int stk_ps_tune_zero_func_fae(struct stk3x3x_data *ps_data)
 				ps_data->ps_thd_l = ps_data->psi + STK_H_LT;
 				if ((ret = stk3x3x_set_ps_thd_h(
 					     ps_data, ps_data->ps_thd_h))) {
-					printk(KERN_ERR
+					pr_err(
 					       "write high thd error: %d\n",
 					       ret);
 				}
 				if ((ret = stk3x3x_set_ps_thd_l(
 					     ps_data, ps_data->ps_thd_l))) {
-					printk(KERN_ERR
+					pr_err(
 					       "write high thd error: %d\n",
 					       ret);
 				}
 				ps_data->ps_thd_update = true;
 				ps_data->skin_near = false;
-				printk(KERN_INFO
-				       "%s:ps update ps = %d, psi = %d\n",
-				       __FUNCTION__, word_data, ps_data->psi);
-				printk(KERN_INFO "%s: update HT=%d, LT=%d\n",
+				pr_debug("%s:ps update ps = %d, psi = %d\n",
+				       __func__, word_data, ps_data->psi);
+				pr_debug("%s: update HT=%d, LT=%d\n",
 				       __func__, ps_data->ps_thd_h,
 				       ps_data->ps_thd_l);
 			}
@@ -2567,12 +2481,12 @@ static int stk_ps_tune_zero_func_fae(struct stk3x3x_data *ps_data)
 		return 0;
 	}
 #endif
-	/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 end*/
+
 	ret = stk3x3x_get_flag(ps_data);
 	if (ret < 0)
 		return ret;
 	if (!(ret & STK_FLG_PSDR_MASK)) {
-		//printk(KERN_INFO "%s: ps data is not ready yet\n", __func__);
+		//pr_debug("%s: ps data is not ready yet\n", __func__);
 		return 0;
 	}
 
@@ -2581,30 +2495,28 @@ static int stk_ps_tune_zero_func_fae(struct stk3x3x_data *ps_data)
 		ret = stk3x3x_i2c_read_data(ps_data->client, 0x11, 2,
 					    &value[0]);
 		if (ret < 0) {
-			printk(KERN_ERR "%s fail, ret=0x%x", __func__, ret);
+			pr_err("%s fail, ret=0x%x", __func__, ret);
 			return ret;
 		}
 		word_data = (value[0] << 8) | value[1];
-		//printk(KERN_INFO "%s: word_data=%d\n", __func__, word_data);
+		//pr_debug("%s: word_data=%d\n", __func__, word_data);
 
 		if (word_data == 0) {
-			//printk(KERN_ERR "%s: incorrect word data (0)\n", __func__);
+			//pr_err("%s: incorrect word data (0)\n", __func__);
 			return 0xFFFF;
 		}
 
 		if (word_data > ps_data->psa) {
 			ps_data->psa = word_data;
-			printk(KERN_INFO "%s: update psa: psa=%d,psi=%d\n",
+			pr_debug("%s: update psa: psa=%d,psi=%d\n",
 			       __func__, ps_data->psa, ps_data->psi);
 		}
 		if (word_data < ps_data->psi) {
 			ps_data->psi = word_data;
-			printk(KERN_INFO "%s: update psi: psa=%d,psi=%d\n",
+			pr_debug("%s: update psi: psa=%d,psi=%d\n",
 			       __func__, ps_data->psa, ps_data->psi);
 		}
-		/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/27 start*/
 		ret = stk3x3x_get_offset(ps_data, word_data);
-		/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/27 end*/
 	}
 	diff = ps_data->psa - ps_data->psi;
 	if (diff > ps_data->stk_max_min_diff) {
@@ -2615,38 +2527,33 @@ static int stk_ps_tune_zero_func_fae(struct stk3x3x_data *ps_data)
 		    (ps_data->ps_thd_h != 0)) {
 			//	ps_data->ps_thd_h = ps_data->ps_thd_h;
 			//	ps_data->ps_thd_l = ps_data->ps_thd_l;
-			printk(KERN_INFO "%s: no update thd, HT=%d, LT=%d\n",
+			pr_debug("%s: no update thd, HT=%d, LT=%d\n",
 			       __func__, ps_data->ps_thd_h, ps_data->ps_thd_l);
 		} else {
 			ps_data->ps_thd_h = ps_data->psi + ps_data->stk_ht_n_ct;
 			ps_data->ps_thd_l = ps_data->psi + ps_data->stk_lt_n_ct;
-			printk(KERN_INFO "%s: update thd, HT=%d, LT=%d\n",
+			pr_debug("%s: update thd, HT=%d, LT=%d\n",
 			       __func__, ps_data->ps_thd_h, ps_data->ps_thd_l);
 		}
 #else
 		ps_data->ps_thd_h = ps_data->psi + ps_data->stk_ht_n_ct;
 		ps_data->ps_thd_l = ps_data->psi + ps_data->stk_lt_n_ct;
-		printk(KERN_INFO "%s: update thd, HT=%d, LT=%d\n", __func__,
+		pr_debug("%s: update thd, HT=%d, LT=%d\n", __func__,
 		       ps_data->ps_thd_h, ps_data->ps_thd_l);
 #endif
 
-/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 start*/
 #ifdef CALI_PS_EVERY_TIME
 		if (ps_data->ps_thd_h > (ps_data->ps_high_thd_boot)) {
-			/* Huaqin add  for P-sensor by zhuqiang 2018/11/07 start */
 			ps_data->ps_high_thd_boot = ps_data->psi + STK_H_HT;
 			ps_data->ps_low_thd_boot = ps_data->psi + STK_H_LT;
-			/* Huaqin add  for P-sensor by zhuqiang 2018/11/07 end */
-			printk(KERN_INFO "%s: update boot HT=%d, LT=%d\n",
+			pr_debug("%s: update boot HT=%d, LT=%d\n",
 			       __func__, ps_data->ps_high_thd_boot,
 			       ps_data->ps_low_thd_boot);
 		}
 #endif
-		/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 end*/
 		stk3x3x_set_ps_thd_h(ps_data, ps_data->ps_thd_h);
 		stk3x3x_set_ps_thd_l(ps_data, ps_data->ps_thd_l);
-
-		printk("%s: FAE tune0 psa-psi(%d) > STK_DIFF found\n", __func__,
+		pr_debug("%s: FAE tune0 psa-psi(%d) > STK_DIFF found\n", __func__,
 		       diff);
 
 #ifndef CTTRACKING
@@ -2657,7 +2564,6 @@ static int stk_ps_tune_zero_func_fae(struct stk3x3x_data *ps_data)
 
 	return 0;
 }
-/*Huaqin modify for psensor cali-auto by zhuqiang at 2018/10/10 end*/
 
 static void stk_ps_tune0_work_func(struct work_struct *work)
 {
@@ -2690,42 +2596,25 @@ static enum hrtimer_restart stk_als_timer_func(struct hrtimer *timer)
 	return HRTIMER_RESTART;
 }
 
-/*Huaqin modify for als by zhuqiang at 2018/10/24 start*/
 static void stk_als_poll_work_func(struct work_struct *work)
 {
 	struct stk3x3x_data *ps_data =
 		container_of(work, struct stk3x3x_data, stk_als_work);
 	int32_t reading = 0, reading_lux, flag_reg;
-	//int32_t als_comperator_A = 0;
 	uint32_t raw_data_u32;
 	flag_reg = stk3x3x_get_flag(ps_data);
 	if (flag_reg < 0)
 		return;
 	if (!(flag_reg & STK_FLG_ALSDR_MASK)) {
-		//printk(KERN_INFO "%s: als is not ready\n", __func__);
+		pr_debug("%s: als is not ready\n", __func__);
 		return;
 	}
 
 	reading = stk3x3x_get_als_reading(ps_data);
 	if (reading < 0)
 		return;
-#if 0
-	if (ps_data->c_code_last != 0)
-	{
-		if(reading < STK_IRC_MAX_ALS_CODE && reading > STK_IRC_MIN_ALS_CODE &&
-				ps_data->c_code_last > STK_IRC_MIN_IR_CODE)
-		{
-			ps_data->als_correct_factor = STK_IRC_ALS_CORREC_A;
-			als_comperator_A = reading * (20); //D55
-			if((ps_data->c_code_last*1000) > als_comperator_A)
-				ps_data->als_correct_factor = STK_IRC_ALS_CORREC_A;
-		}
-	}
-	printk(KERN_INFO "%s: als_raw=%d, data_c=%d, factor=%d\n",__func__, reading, ps_data->c_code_last, ps_data->als_correct_factor);
-#endif
 
 	if (!lcm_flags) {
-		//printk(KERN_INFO "%s: lcm_flags = %d\n",__func__, lcm_flags);
 		if (ps_data->c_code_last != 0 &&
 		    reading < STK_IRC_MAX_ALS_CODE) {
 			if (reading < 200) {
@@ -2751,7 +2640,6 @@ static void stk_als_poll_work_func(struct work_struct *work)
 			reading_lux = stk_alscode2lux(ps_data, raw_data_u32);
 		}
 	} else {
-		//printk(KERN_INFO "%s: lcm_flags = %d\n",__func__, lcm_flags);
 		if (ps_data->c_code_last != 0 &&
 		    reading < STK_IRC_MAX_ALS_CODE) {
 			if (reading < 200) {
@@ -2775,13 +2663,10 @@ static void stk_als_poll_work_func(struct work_struct *work)
 			reading_lux = stk_alscode2lux(ps_data, raw_data_u32);
 		}
 	}
-	//printk(KERN_INFO "%s: als_raw=%d, data_c=%d, factor=%d\n",__func__, reading, ps_data->c_code_last, ps_data->als_correct_factor);
-	/* Huaqin add  for 1250689 by zhuqiang 2018/11/12 start */
 	stk_als_report(ps_data, reading_lux);
-	/* Huaqin add  for 1250689 by zhuqiang 2018/11/12 end */
 }
 #endif /* #ifdef STK_POLL_ALS */
-/*Huaqin modify for als by zhuqiang at 2018/10/24 end*/
+
 #ifdef STK_POLL_PS
 static enum hrtimer_restart stk_ps_timer_func(struct hrtimer *timer)
 {
@@ -2799,7 +2684,6 @@ static void stk_ps_poll_work_func(struct work_struct *work)
 	uint32_t reading;
 	int32_t near_far_state;
 	uint8_t org_flag_reg;
-	/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 start*/
 
 	if (ps_data->ps_enabled) {
 #ifdef STK_TUNE0
@@ -2811,7 +2695,7 @@ static void stk_ps_poll_work_func(struct work_struct *work)
 			return;
 
 		if (!(org_flag_reg & STK_FLG_PSDR_MASK)) {
-			//printk(KERN_INFO "%s: ps is not ready\n", __func__);
+			pr_debug("%s: ps is not ready\n", __func__);
 			return;
 		}
 
@@ -2820,15 +2704,12 @@ static void stk_ps_poll_work_func(struct work_struct *work)
 		ps_data->ps_code_last = reading;
 		if (ps_data->ps_distance_last != near_far_state) {
 			stk_ps_report(ps_data, near_far_state);
-			printk(KERN_INFO "%s: ps input event=%d, ps=%d\n",
-			       __func__, near_far_state, reading);
 		}
 	}
 }
 #endif
-/*Huaqin modify for psensor near/far threshold by chenyijun5 at 2018/02/11 end*/
-#if (!defined(STK_POLL_PS) || !defined(STK_POLL_ALS))
 
+#if (!defined(STK_POLL_PS) || !defined(STK_POLL_ALS))
 #if ((STK_INT_PS_MODE == 0x03) || (STK_INT_PS_MODE == 0x02))
 static void stk_ps_int_handle_int_mode_2_3(struct stk3x3x_data *ps_data)
 {
@@ -2842,17 +2723,16 @@ static void stk_ps_int_handle_int_mode_2_3(struct stk3x3x_data *ps_data)
 #endif
 	reading = stk3x3x_get_ps_reading(ps_data);
 	stk_ps_report(ps_data, near_far_state);
-	printk(KERN_INFO "%s: ps input event=%d, ps code=%d\n", __func__,
-	       near_far_state, reading);
 }
 #endif
 
-/* Huaqin add for ZQL1650-1072 by zhuqiang at 2018/04/23 start*/
+
 int tp_status_fun(void)
 {
 	return (call_status_flag & ps_status_flag);
 }
 EXPORT_SYMBOL(tp_status_fun);
+
 static void stk_ps_int_handle(struct stk3x3x_data *ps_data, uint32_t ps_reading,
 			      int32_t nf_state)
 {
@@ -2861,10 +2741,9 @@ static void stk_ps_int_handle(struct stk3x3x_data *ps_data, uint32_t ps_reading,
 	else
 		ps_status_flag = 0;
 	stk_ps_report(ps_data, nf_state);
-	printk(KERN_INFO "%s: ps input event=%d, ps code=%d\n", __func__,
+	pr_debug("%s: ps input event=%d, ps code=%d\n", __func__,
 	       nf_state, ps_reading);
 }
-/* Huaqin add ZQL1650-1072 by zhuqiang at 2018/04/23 end*/
 
 static int stk_als_int_handle(struct stk3x3x_data *ps_data,
 			      uint32_t als_reading)
@@ -2895,7 +2774,7 @@ static int stk_als_int_handle(struct stk3x3x_data *ps_data,
 			ps_data->als_correct_factor = 1000;
 		/*Huaqin modify for als by zhuqiang at 2018/08/28 end*/
 	}
-	// printk(KERN_INFO "%s: als=%d, ir=%d, als_correct_factor=%d", __func__, als_reading, ps_data->ir_code, ps_data->als_correct_factor);
+	// pr_debug("%s: als=%d, ir=%d, als_correct_factor=%d", __func__, als_reading, ps_data->ir_code, ps_data->als_correct_factor);
 
 	als_reading = als_reading * ps_data->als_correct_factor / 1000;
 	ps_data->als_code_last = als_reading;
@@ -2916,11 +2795,10 @@ static void stk_work_func(struct work_struct *work)
 	struct stk3x3x_data *ps_data =
 		container_of(work, struct stk3x3x_data, stk_work);
 	uint32_t reading;
-/*Huaqin add for ps INT mode by chenyijun5 at 2018/03/29 start*/
 #ifdef CTTRACKING
 	int err;
 #endif
-/*Huaqin add for ps INT mode by chenyijun5 at 2018/03/29 end*/
+
 #if ((STK_INT_PS_MODE == 0x03) || (STK_INT_PS_MODE == 0x02))
 	stk_ps_int_handle_int_mode_2_3(ps_data);
 #else
@@ -2929,7 +2807,7 @@ static void stk_work_func(struct work_struct *work)
 	if (org_flag_reg < 0)
 		goto err_i2c_rw;
 #ifdef STK_DEBUG_PRINTF
-	printk(KERN_INFO "%s: flag=0x%x\n", __func__, org_flag_reg);
+	pr_debug("%s: flag=0x%x\n", __func__, org_flag_reg);
 #endif
 	if (org_flag_reg & STK_FLG_ALSINT_MASK) {
 		disable_flag |= STK_FLG_ALSINT_MASK;
@@ -2949,7 +2827,6 @@ static void stk_work_func(struct work_struct *work)
 
 		near_far_state = (org_flag_reg & STK_FLG_NF_MASK) ? 1 : 0;
 
-/*Huaqin add for ps INT mode by chenyijun5 at 2018/03/29 start*/
 #ifdef CTTRACKING
 		if (near_far_state == 0) {
 			if ((reading > (ps_data->psi + STK_H_PS)) &&
@@ -2958,24 +2835,18 @@ static void stk_work_func(struct work_struct *work)
 				ps_data->ps_thd_l = ps_data->psi + STK_H_LT;
 				if ((err = stk3x3x_set_ps_thd_h(
 					     ps_data, ps_data->ps_thd_h))) {
-					printk(KERN_ERR
+					pr_err(
 					       "write high thd error: %d\n",
 					       err);
 				}
 				if ((err = stk3x3x_set_ps_thd_l(
 					     ps_data, ps_data->ps_thd_l))) {
-					printk(KERN_ERR
+					pr_err(
 					       "write high thd error: %d\n",
 					       err);
 				}
 				ps_data->ps_thd_update = true;
 				ps_data->skin_near = false;
-				printk(KERN_INFO
-				       "%s:ps update ps = %d, psi = %d\n",
-				       __FUNCTION__, reading, ps_data->psi);
-				printk(KERN_INFO "%s: update HT=%d, LT=%d\n",
-				       __func__, ps_data->ps_thd_h,
-				       ps_data->ps_thd_l);
 			}
 		} else {
 			ps_data->skin_near = true;
@@ -2990,28 +2861,22 @@ static void stk_work_func(struct work_struct *work)
 					if ((err = stk3x3x_set_ps_thd_h(
 						     ps_data,
 						     ps_data->ps_thd_h))) {
-						printk(KERN_ERR
+						pr_err(
 						       "write high thd error: %d\n",
 						       err);
 					}
 					if ((err = stk3x3x_set_ps_thd_l(
 						     ps_data,
 						     ps_data->ps_thd_l))) {
-						printk(KERN_ERR
+						pr_err(
 						       "write low thd error: %d\n",
 						       err);
 					}
-					printk(KERN_INFO
-					       "%s: Set HT=%d, LT=%d\n",
-					       __func__, ps_data->ps_thd_h,
-					       ps_data->ps_thd_l);
 				}
 				ps_data->ps_thd_update = false;
 			}
 		}
 #endif
-		/*Huaqin add for ps INT mode by chenyijun5 at 2018/03/29 end*/
-
 		stk_ps_int_handle(ps_data, reading, near_far_state);
 	}
 
@@ -3044,24 +2909,16 @@ static irqreturn_t stk_oss_irq_handler(int irq, void *data)
 #ifdef STK_POLL_ALS
 static void stk3x3x_als_set_poll_delay(struct stk3x3x_data *ps_data)
 {
+	static const u16 delay_ms[] = { 60, 110, 220, 440, 880 };
 	uint8_t als_it = ps_data->alsctrl_reg & 0x0F;
+	u16 ms;
 
-	if (als_it == 0x8) {
-		ps_data->als_poll_delay = ns_to_ktime(60 * NSEC_PER_MSEC);
-	} else if (als_it == 0x9) {
-		ps_data->als_poll_delay = ns_to_ktime(110 * NSEC_PER_MSEC);
-	} else if (als_it == 0xA) {
-		ps_data->als_poll_delay = ns_to_ktime(220 * NSEC_PER_MSEC);
-	} else if (als_it == 0xB) {
-		ps_data->als_poll_delay = ns_to_ktime(440 * NSEC_PER_MSEC);
-	} else if (als_it == 0xC) {
-		ps_data->als_poll_delay = ns_to_ktime(880 * NSEC_PER_MSEC);
-	} else {
-		ps_data->als_poll_delay = ns_to_ktime(110 * NSEC_PER_MSEC);
-		printk(KERN_INFO
-		       "%s: unknown ALS_IT=%d, set als_poll_delay=110ms\n",
-		       __func__, als_it);
-	}
+	if (als_it >= 0x8 && als_it <= 0xC)
+		ms = delay_ms[als_it - 0x8];
+	else
+		ms = 110;
+
+	ps_data->als_poll_delay = ms_to_ktime(ms);
 }
 #endif
 
@@ -3090,9 +2947,7 @@ static int32_t stk3x3x_init_all_setting(struct i2c_client *client,
 	ps_data->re_enable_als = false;
 	ps_data->re_enable_ps = false;
 	ps_data->ir_code = 0;
-	/*Huaqin modify for als by zhuqiang at 2018/08/28 start*/
 	ps_data->als_correct_factor = STK_IRC_ALS_CORREC_A;
-	/*Huaqin modify for als by zhuqiang at 2018/08/28 end*/
 	ps_data->first_boot = true;
 #ifndef CONFIG_STK_PS_ALS_USE_CHANGE_THRESHOLD
 	stk_init_code_threshold_table(ps_data);
@@ -3127,11 +2982,11 @@ static int stk3x3x_setup_irq(struct i2c_client *client)
 	irq = gpio_to_irq(ps_data->int_pin);
 #endif
 #ifdef STK_DEBUG_PRINTF
-	printk(KERN_INFO "%s: int pin #=%d, irq=%d\n", __func__,
+	pr_debug("%s: int pin #=%d, irq=%d\n", __func__,
 	       ps_data->int_pin, irq);
 #endif
 	if (irq <= 0) {
-		printk(KERN_ERR
+		pr_err(
 		       "irq number is not specified, irq # = %d, int pin=%d\n",
 		       irq, ps_data->int_pin);
 		return irq;
@@ -3139,14 +2994,14 @@ static int stk3x3x_setup_irq(struct i2c_client *client)
 	ps_data->irq = irq;
 	err = gpio_request(ps_data->int_pin, "stk-int");
 	if (err < 0) {
-		printk(KERN_ERR "%s: gpio_request, err=%d", __func__, err);
+		pr_err("%s: gpio_request, err=%d", __func__, err);
 		return err;
 	}
 	// gpio_tlmm_config(GPIO_CFG(ps_data->int_pin, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP, GPIO_CFG_8MA), GPIO_CFG_ENABLE);
 
 	err = gpio_direction_input(ps_data->int_pin);
 	if (err < 0) {
-		printk(KERN_ERR "%s: gpio_direction_input, err=%d", __func__,
+		pr_err("%s: gpio_direction_input, err=%d", __func__,
 		       err);
 		return err;
 	}
@@ -3160,7 +3015,7 @@ static int stk3x3x_setup_irq(struct i2c_client *client)
 				      IRQF_TRIGGER_LOW, DEVICE_NAME, ps_data);
 #endif
 	if (err < 0) {
-		printk(KERN_WARNING
+		pr_warn(
 		       "%s: request_any_context_irq(%d) failed for (%d)\n",
 		       __func__, irq, err);
 		goto err_request_any_context_irq;
@@ -3188,18 +3043,16 @@ static int stk3x3x_suspend(struct device *dev)
 #ifndef STK_POLL_PS
 	struct i2c_client *client = to_i2c_client(dev);
 #endif
-	/*Huaqin add for ps adjustmen by zhuqiang at 2018/11/15 start*/
 	hq_suspend_flags = 0;
-	/*Huaqin add for ps adjustmen by zhuqiang at 2018/11/15 end*/
 
-	printk(KERN_INFO "%s\n", __func__);
+	pr_debug("%s\n", __func__);
 #ifndef SPREADTRUM_PLATFORM
 	mutex_lock(&ps_data->io_lock);
 #endif
 #ifdef STK_CHK_REG
 	err = stk3x3x_validate_n_handle(ps_data->client);
 	if (err < 0) {
-		printk(KERN_ERR "stk3x3x_validate_n_handle fail: %d\n", err);
+		pr_err("stk3x3x_validate_n_handle fail: %d\n", err);
 	} else if (err == 0xFF) {
 		if (ps_data->ps_enabled)
 			stk3x3x_enable_ps(ps_data, 1, 0);
@@ -3207,7 +3060,7 @@ static int stk3x3x_suspend(struct device *dev)
 #endif /* #ifdef STK_CHK_REG */
 #ifndef SPREADTRUM_PLATFORM
 	if (ps_data->als_enabled) {
-		printk(KERN_INFO "%s: Enable ALS : 0\n", __func__);
+		pr_debug("%s: Enable ALS : 0\n", __func__);
 		stk3x3x_enable_als(ps_data, 0);
 		ps_data->re_enable_als = true;
 	}
@@ -3219,11 +3072,11 @@ static int stk3x3x_suspend(struct device *dev)
 		if (device_may_wakeup(&client->dev)) {
 			err = enable_irq_wake(ps_data->irq);
 			if (err)
-				printk(KERN_WARNING
+				pr_warn(
 				       "%s: set_irq_wake(%d) failed, err=(%d)\n",
 				       __func__, ps_data->irq, err);
 		} else {
-			printk(KERN_ERR "%s: not support wakeup source\n",
+			pr_err("%s: not support wakeup source\n",
 			       __func__);
 		}
 #endif
@@ -3243,18 +3096,16 @@ static int stk3x3x_resume(struct device *dev)
 #ifndef STK_POLL_PS
 	struct i2c_client *client = to_i2c_client(dev);
 #endif
-	/*Huaqin add for ps adjustmen by zhuqiang at 2018/11/15 start*/
 	hq_suspend_flags = 1;
-	/*Huaqin add for ps adjustmen by zhuqiang at 2018/11/15 end*/
 
-	printk(KERN_INFO "%s\n", __func__);
+	pr_debug("%s\n", __func__);
 #ifndef SPREADTRUM_PLATFORM
 	mutex_lock(&ps_data->io_lock);
 #endif
 #ifdef STK_CHK_REG
 	err = stk3x3x_validate_n_handle(ps_data->client);
 	if (err < 0) {
-		printk(KERN_ERR "stk3x3x_validate_n_handle fail: %d\n", err);
+		pr_err("stk3x3x_validate_n_handle fail: %d\n", err);
 	} else if (err == 0xFF) {
 		if (ps_data->ps_enabled)
 			stk3x3x_enable_ps(ps_data, 1, 0);
@@ -3262,7 +3113,7 @@ static int stk3x3x_resume(struct device *dev)
 #endif /* #ifdef STK_CHK_REG */
 #ifndef SPREADTRUM_PLATFORM
 	if (ps_data->re_enable_als) {
-		printk(KERN_INFO "%s: Enable ALS : 1\n", __func__);
+		pr_debug("%s: Enable ALS : 1\n", __func__);
 		stk3x3x_enable_als(ps_data, 1);
 		ps_data->re_enable_als = false;
 	}
@@ -3275,7 +3126,7 @@ static int stk3x3x_resume(struct device *dev)
 		if (device_may_wakeup(&client->dev)) {
 			err = disable_irq_wake(ps_data->irq);
 			if (err)
-				printk(KERN_WARNING
+				pr_warn(
 				       "%s: disable_irq_wake(%d) failed, err=(%d)\n",
 				       __func__, ps_data->irq, err);
 		}
@@ -3316,7 +3167,6 @@ static int stk3x3x_power_ctl(struct stk3x3x_data *data, bool on)
 			return ret;
 		}
 		data->power_enabled = on;
-		printk(KERN_INFO "%s: disable stk3x3x power", __func__);
 		dev_dbg(&data->client->dev, "stk3x3x_power_ctl on=%d\n", on);
 	} else if (on && !data->power_enabled) {
 		ret = regulator_enable(data->vdd);
@@ -3334,7 +3184,6 @@ static int stk3x3x_power_ctl(struct stk3x3x_data *data, bool on)
 			return ret;
 		}
 		data->power_enabled = on;
-		printk(KERN_INFO "%s: enable stk3x3x power", __func__);
 		dev_dbg(&data->client->dev, "stk3x3x_power_ctl on=%d\n", on);
 	} else {
 		dev_warn(&data->client->dev, "Power on=%d. enabled=%d\n", on,
@@ -3582,7 +3431,7 @@ static int stk3x3x_set_input_devices(struct stk3x3x_data *ps_data)
 
 	ps_data->als_input_dev = input_allocate_device();
 	if (ps_data->als_input_dev == NULL) {
-		printk(KERN_ERR "%s: could not allocate als device\n",
+		pr_err("%s: could not allocate als device\n",
 		       __func__);
 		err = -ENOMEM;
 		return err;
@@ -3594,14 +3443,14 @@ static int stk3x3x_set_input_devices(struct stk3x3x_data *ps_data)
 			     stk_alscode2lux(ps_data, (1 << 16) - 1), 0, 0);
 	err = input_register_device(ps_data->als_input_dev);
 	if (err < 0) {
-		printk(KERN_ERR "%s: can not register als input device\n",
+		pr_err("%s: can not register als input device\n",
 		       __func__);
 		goto err_als_input_register;
 	}
 
 	ps_data->ps_input_dev = input_allocate_device();
 	if (ps_data->ps_input_dev == NULL) {
-		printk(KERN_ERR "%s: could not allocate ps device\n", __func__);
+		pr_err("%s: could not allocate ps device\n", __func__);
 		err = -ENOMEM;
 		goto err_ps_input_allocate;
 	}
@@ -3611,7 +3460,7 @@ static int stk3x3x_set_input_devices(struct stk3x3x_data *ps_data)
 	input_set_abs_params(ps_data->ps_input_dev, ABS_DISTANCE, 0, 1, 0, 0);
 	err = input_register_device(ps_data->ps_input_dev);
 	if (err < 0) {
-		printk(KERN_ERR "%s: can not register ps input device\n",
+		pr_err("%s: can not register ps input device\n",
 		       __func__);
 		goto err_ps_input_register;
 	}
@@ -3619,14 +3468,14 @@ static int stk3x3x_set_input_devices(struct stk3x3x_data *ps_data)
 	err = sysfs_create_group(&ps_data->als_input_dev->dev.kobj,
 				 &stk_als_attribute_group);
 	if (err < 0) {
-		printk(KERN_ERR "%s:could not create sysfs group for als\n",
+		pr_err("%s:could not create sysfs group for als\n",
 		       __func__);
 		goto err_als_create_group;
 	}
 	err = sysfs_create_group(&ps_data->ps_input_dev->dev.kobj,
 				 &stk_ps_attribute_group);
 	if (err < 0) {
-		printk(KERN_ERR "%s:could not create sysfs group for ps\n",
+		pr_err("%s:could not create sysfs group for ps\n",
 		       __func__);
 		goto err_ps_create_group;
 	}
@@ -3689,16 +3538,16 @@ static int stk3x3x_probe(struct i2c_client *client,
 	struct stk3x3x_data *ps_data;
 	struct stk3x3x_platform_data *plat_data;
 
-	printk(KERN_INFO "%s: driver version = %s\n", __func__, DRIVER_VERSION);
+	pr_debug("%s: driver version = %s\n", __func__, DRIVER_VERSION);
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		printk(KERN_ERR "%s: No Support for I2C_FUNC_I2C\n", __func__);
+		pr_err("%s: No Support for I2C_FUNC_I2C\n", __func__);
 		return -ENODEV;
 	}
 
 	ps_data = kzalloc(sizeof(struct stk3x3x_data), GFP_KERNEL);
 	if (!ps_data) {
-		printk(KERN_ERR "%s: failed to allocate stk3x3x_data\n",
+		pr_err("%s: failed to allocate stk3x3x_data\n",
 		       __func__);
 		return -ENOMEM;
 	}
@@ -3714,7 +3563,7 @@ static int stk3x3x_probe(struct i2c_client *client,
 #endif
 
 	if (client->dev.of_node) {
-		printk(KERN_INFO "%s: probe with device tree\n", __func__);
+		pr_debug("%s: probe with device tree\n", __func__);
 		plat_data = devm_kzalloc(&client->dev,
 					 sizeof(struct stk3x3x_platform_data),
 					 GFP_KERNEL);
@@ -3730,7 +3579,7 @@ static int stk3x3x_probe(struct i2c_client *client,
 			return err;
 		}
 	} else {
-		printk(KERN_INFO "%s: probe with platform data\n", __func__);
+		pr_debug("%s: probe with platform data\n", __func__);
 #ifdef SPREADTRUM_PLATFORM
 		plat_data = &stk3x3x_pfdata;
 #else
@@ -3833,7 +3682,7 @@ static int stk3x3x_probe(struct i2c_client *client,
 		goto err_power_ctl;
 #endif
 
-	printk(KERN_INFO "%s: probe successfully", __func__);
+	pr_debug("%s: probe successfully", __func__);
 	return 0;
 
 	//device_init_wakeup(&client->dev, false);
