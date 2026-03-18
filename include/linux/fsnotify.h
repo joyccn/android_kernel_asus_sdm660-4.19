@@ -16,7 +16,6 @@
 #include <linux/audit.h>
 #include <linux/slab.h>
 #include <linux/bug.h>
-
 /* Notify this dentry's parent about a child's events. */
 static inline int fsnotify_parent(const struct path *path, struct dentry *dentry, __u32 mask)
 {
@@ -217,7 +216,7 @@ static inline void fsnotify_open(struct file *file)
 {
 	const struct path *path = &file->f_path;
 	struct inode *inode = file_inode(file);
-	struct path lower_path;
+	struct path lower_path = {0};
 	__u32 mask = FS_OPEN;
 
 	if (S_ISDIR(inode->i_mode))
@@ -225,6 +224,10 @@ static inline void fsnotify_open(struct file *file)
 
 	if (path->dentry->d_op && path->dentry->d_op->d_canonical_path) {
 		path->dentry->d_op->d_canonical_path(path, &lower_path);
+		if (IS_ERR(lower_path.dentry)) {
+			/* cannot return ERR_PTR since this is void */
+			return;
+		}
 		fsnotify_parent(&lower_path, NULL, mask);
 		fsnotify(lower_path.dentry->d_inode, mask, &lower_path,
 			 FSNOTIFY_EVENT_PATH, NULL, 0);
