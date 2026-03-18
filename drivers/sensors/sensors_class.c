@@ -31,11 +31,11 @@
 #define DATA_MASK	0xFFFF0000
 #define DATA_AXIS_SHIFT	17
 #define DATA_APPLY_SHIFT	16
+
 /*
  * CMD_GET_PARAMS(BIT, PARA, DATA) combine high 16 bit and low 16 bit
  * as one params
  */
-
 #define CMD_GET_PARAMS(BIT, PARA, DATA)	\
 	((BIT) ?	\
 		((DATA) & DATA_MASK)	\
@@ -196,12 +196,12 @@ static ssize_t sensors_enable_store(struct device *dev,
 	if (ret)
 		return ret;
 	if (data > 1) {
-		dev_err(dev, "Invalid value of input, input=%ld\n", data);
+		dev_dbg(dev, "Invalid value of input, input=%ld\n", data);
 		return -EINVAL;
 	}
 
 	if (sensors_cdev->sensors_enable == NULL) {
-		dev_err(dev, "Invalid sensor class enable handle\n");
+		dev_dbg(dev, "Invalid sensor class enable handle\n");
 		return -EINVAL;
 	}
 	ret = sensors_cdev->sensors_enable(sensors_cdev, data);
@@ -233,11 +233,11 @@ static ssize_t sensors_delay_store(struct device *dev,
 		return ret;
 	/* The data unit is millisecond, the min_delay unit is microseconds. */
 	if ((data * 1000) < sensors_cdev->min_delay) {
-		dev_err(dev, "Invalid value of delay, delay=%ld\n", data);
+		dev_dbg(dev, "Invalid value of delay, delay=%ld\n", data);
 		return -EINVAL;
 	}
 	if (sensors_cdev->sensors_poll_delay == NULL) {
-		dev_err(dev, "Invalid sensor class delay handle\n");
+		dev_dbg(dev, "Invalid sensor class delay handle\n");
 		return -EINVAL;
 	}
 	ret = sensors_cdev->sensors_poll_delay(sensors_cdev, data);
@@ -263,7 +263,7 @@ static ssize_t sensors_test_show(struct device *dev,
 	int ret;
 
 	if (sensors_cdev->sensors_self_test == NULL) {
-		dev_err(dev, "Invalid sensor class self test handle\n");
+		dev_dbg(dev, "Invalid sensor class self test handle\n");
 		return -EINVAL;
 	}
 
@@ -287,19 +287,19 @@ static ssize_t sensors_max_latency_store(struct device *dev,
 		return ret;
 
 	if (latency > sensors_cdev->max_delay) {
-		dev_err(dev, "max_latency(%lu) is greater than max_delay(%u)\n",
+		dev_dbg(dev, "max_latency(%lu) is greater than max_delay(%u)\n",
 				latency, sensors_cdev->max_delay);
 		return -EINVAL;
 	}
 
 	if (sensors_cdev->sensors_set_latency == NULL) {
-		dev_err(dev, "Invalid sensor calss set latency handle\n");
+		dev_dbg(dev, "Invalid sensor calss set latency handle\n");
 		return -EINVAL;
 	}
 
 	/* Disable batching for this sensor */
 	if ((latency < sensors_cdev->delay_msec) && (latency != 0)) {
-		dev_err(dev, "max_latency is less than delay_msec\n");
+		dev_dbg(dev, "max_latency is less than delay_msec\n");
 		return -EINVAL;
 	}
 
@@ -331,13 +331,13 @@ static ssize_t sensors_flush_store(struct device *dev,
 	if (ret)
 		return ret;
 	if (data != 1) {
-		dev_err(dev, "Flush: Invalid value of input, input=%ld\n",
+		dev_dbg(dev, "Flush: Invalid value of input, input=%ld\n",
 				data);
 		return -EINVAL;
 	}
 
 	if (sensors_cdev->sensors_flush == NULL) {
-		dev_err(dev, "Invalid sensor class flush handle\n");
+		dev_dbg(dev, "Invalid sensor class flush handle\n");
 		return -EINVAL;
 	}
 	ret = sensors_cdev->sensors_flush(sensors_cdev);
@@ -365,7 +365,7 @@ static ssize_t sensors_enable_wakeup_store(struct device *dev,
 	unsigned long enable;
 
 	if (sensors_cdev->sensors_enable_wakeup == NULL) {
-		dev_err(dev, "Invalid sensor class enable_wakeup handle\n");
+		dev_dbg(dev, "Invalid sensor class enable_wakeup handle\n");
 		return -EINVAL;
 	}
 
@@ -396,7 +396,7 @@ static ssize_t sensors_calibrate_show(struct device *dev,
 {
 	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
 	if (sensors_cdev->params == NULL) {
-		dev_err(dev, "Invalid sensor params\n");
+		dev_dbg(dev, "Invalid sensor params\n");
 		return -EINVAL;
 	}
 	return snprintf(buf, PAGE_SIZE, "%s\n", sensors_cdev->params);
@@ -418,7 +418,7 @@ static ssize_t sensors_calibrate_store(struct device *dev,
 	cmd = data & CMD_MASK;
 	if (cmd == CMD_DO_CAL) {
 		if (sensors_cdev->sensors_calibrate == NULL) {
-			dev_err(dev, "Invalid calibrate handle\n");
+			dev_dbg(dev, "Invalid calibrate handle\n");
 			return -EINVAL;
 		}
 		/* parse the data to get the axis and apply_now value*/
@@ -431,7 +431,7 @@ static ssize_t sensors_calibrate_store(struct device *dev,
 			return ret;
 	} else {
 		if (sensors_cdev->sensors_write_cal_params == NULL) {
-			dev_err(dev,
+			dev_dbg(dev,
 					"Invalid write_cal_params handle\n");
 			return -EINVAL;
 		}
@@ -444,7 +444,7 @@ static ssize_t sensors_calibrate_store(struct device *dev,
 			ret = sensors_cdev->sensors_write_cal_params
 				(sensors_cdev, &sensors_cdev->cal_result);
 		} else {
-			dev_err(dev, "Invalid command\n");
+			dev_dbg(dev, "Invalid command\n");
 			return -EINVAL;
 		}
 	}
@@ -578,6 +578,7 @@ static int __init sensors_init(void)
 	sensors_class = class_create(THIS_MODULE, "sensors");
 	if (IS_ERR(sensors_class))
 		return PTR_ERR(sensors_class);
+
 #ifdef CONFIG_MACH_ASUS_SDM660
 	sensors_class->dev_groups = sensor_groups;
 #else
