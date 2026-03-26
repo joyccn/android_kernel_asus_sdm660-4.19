@@ -23,7 +23,8 @@
 struct nvt_ts_data *ts;
 static uint8_t bTouchIsAwake;
 static int __always_inline nvt_fb_notifier_callback(struct notifier_block *self,
-						    unsigned long event, void *data);
+						    unsigned long event,
+						    void *data);
 
 #if BOOT_UPDATE_FIRMWARE
 static struct workqueue_struct *nvt_fwu_wq;
@@ -32,53 +33,23 @@ extern void Boot_Update_Firmware(struct work_struct *work);
 
 #if WAKEUP_GESTURE
 static struct wakeup_source *gesture_wakelock;
-
-#define GESTURE_WORD_C 12
-#define GESTURE_WORD_W 13
-#define GESTURE_WORD_V 14
-#define GESTURE_DOUBLE_CLICK 15
-#define GESTURE_WORD_Z 16
-#define GESTURE_WORD_M 17
-#define GESTURE_WORD_O 18
-#define GESTURE_WORD_e 19
-#define GESTURE_WORD_S 20
-#define GESTURE_SLIDE_UP 21
-#define GESTURE_SLIDE_DOWN 22
-#define GESTURE_SLIDE_LEFT 23
-#define GESTURE_SLIDE_RIGHT 24
-#define DATA_PROTOCOL 30
-#define FUNCPAGE_GESTURE 1
-
-const uint16_t gesture_key_array[] = {
-	KEY_POWER, //GESTURE_WORD_C
-	KEY_POWER, //GESTURE_WORD_W
-	KEY_POWER, //GESTURE_WORD_V
-	KEY_POWER, //GESTURE_DOUBLE_CLICK
-	KEY_POWER, //GESTURE_WORD_Z
-	KEY_POWER, //GESTURE_WORD_M
-	KEY_POWER, //GESTURE_WORD_O
-	KEY_POWER, //GESTURE_WORD_e
-	KEY_POWER, //GESTURE_WORD_S
-	KEY_POWER, //GESTURE_SLIDE_UP
-	KEY_POWER, //GESTURE_SLIDE_DOWN
-	KEY_POWER, //GESTURE_SLIDE_LEFT
-	KEY_POWER, //GESTURE_SLIDE_RIGHT
-};
 #define NVT_GESTURE_MODE "tpd_gesture"
 
 static long gesture_mode = 0;
-static ssize_t nvt_gesture_mode_get_proc(struct file *file,
-                        char __user *buffer, size_t size, loff_t *ppos)
+static ssize_t nvt_gesture_mode_get_proc(struct file *file, char __user *buffer,
+					 size_t size, loff_t *ppos)
 {
 	char ptr[64] = { 0 };
-	size_t len = (gesture_mode == 0) ? sprintf(ptr, "0\n") : sprintf(ptr, "1\n");
+	size_t len =
+		(gesture_mode == 0) ? sprintf(ptr, "0\n") : sprintf(ptr, "1\n");
 	return simple_read_from_buffer(buffer, size, ppos, ptr, len);
 }
 
 static ssize_t nvt_gesture_mode_set_proc(struct file *filp,
-                        const char __user *buffer, size_t count, loff_t *off)
+					 const char __user *buffer,
+					 size_t count, loff_t *off)
 {
-	char msg[20] = {0};
+	char msg[20] = { 0 };
 	int ret = 0;
 
 	if (!bTouchIsAwake) {
@@ -111,16 +82,50 @@ static const struct file_operations gesture_mode_proc_ops = {
 	.write = nvt_gesture_mode_set_proc,
 };
 
+const uint16_t gesture_key_array[] = {
+	KEY_TP_GESTURE_C, // GESTURE_WORD_C
+	KEY_TP_GESTURE_W, // GESTURE_WORD_W
+	KEY_TP_GESTURE_V, // GESTURE_WORD_V
+	KEY_WAKEUP, // GESTURE_DOUBLE_CLICK
+	KEY_TP_GESTURE_Z, // GESTURE_WORD_Z
+	KEY_TP_GESTURE_M, // GESTURE_WORD_M
+	KEY_TP_GESTURE_O, // GESTURE_WORD_O
+	KEY_TP_GESTURE_E, // GESTURE_WORD_E
+	KEY_TP_GESTURE_S, // GESTURE_WORD_S
+	KEY_TP_GESTURE_SWIPE_UP, // GESTURE_SLIDE_UP
+	KEY_TP_GESTURE_SWIPE_DOWN, // GESTURE_SLIDE_DOWN
+	KEY_TP_GESTURE_SWIPE_LEFT, // GESTURE_SLIDE_LEFT
+	KEY_TP_GESTURE_SWIPE_RIGHT, // GESTURE_SLIDE_RIGHT
+};
+
+#define GESTURE_WORD_C 12
+#define GESTURE_WORD_W 13
+#define GESTURE_WORD_V 14
+#define GESTURE_DOUBLE_CLICK 15
+#define GESTURE_WORD_Z 16
+#define GESTURE_WORD_M 17
+#define GESTURE_WORD_O 18
+#define GESTURE_WORD_e 19
+#define GESTURE_WORD_S 20
+#define GESTURE_SLIDE_UP 21
+#define GESTURE_SLIDE_DOWN 22
+#define GESTURE_SLIDE_LEFT 23
+#define GESTURE_SLIDE_RIGHT 24
+#define DATA_PROTOCOL 30
+#define FUNCPAGE_GESTURE 1
+
 inline void nvt_ts_wakeup_gesture_report(uint8_t gesture_id, uint8_t *data)
 {
 	uint32_t keycode = 0;
 	uint8_t func_type = data[2];
 	uint8_t func_id = data[3];
 
-	if ((gesture_id == DATA_PROTOCOL) && (func_type == FUNCPAGE_GESTURE))
+	/* support fw specifal data protocol */
+	if ((gesture_id == DATA_PROTOCOL) && (func_type == FUNCPAGE_GESTURE)) {
 		gesture_id = func_id;
-	else if (gesture_id > DATA_PROTOCOL)
+	} else if (gesture_id > DATA_PROTOCOL) {
 		return;
+	}
 
 	switch (gesture_id) {
 	case GESTURE_WORD_C:
@@ -187,7 +192,8 @@ static int nvt_lcm_bias_power_init(struct nvt_ts_data *data)
 	}
 
 	if (regulator_count_voltages(data->lcm_lab) > 0) {
-		ret = regulator_set_voltage(data->lcm_lab, LCM_LAB_MIN_UV, LCM_LAB_MAX_UV);
+		ret = regulator_set_voltage(data->lcm_lab, LCM_LAB_MIN_UV,
+					    LCM_LAB_MAX_UV);
 		if (ret)
 			goto reg_lcm_lab_put;
 	}
@@ -199,7 +205,8 @@ static int nvt_lcm_bias_power_init(struct nvt_ts_data *data)
 	}
 
 	if (regulator_count_voltages(data->lcm_ibb) > 0) {
-		ret = regulator_set_voltage(data->lcm_ibb, LCM_IBB_MIN_UV, LCM_IBB_MAX_UV);
+		ret = regulator_set_voltage(data->lcm_ibb, LCM_IBB_MIN_UV,
+					    LCM_IBB_MAX_UV);
 		if (ret)
 			goto reg_lcm_ibb_put;
 	}
@@ -222,13 +229,13 @@ exit:
 
 static int nvt_lcm_bias_power_deinit(struct nvt_ts_data *data)
 {
-	if (data-> lcm_ibb != NULL) {
+	if (data->lcm_ibb != NULL) {
 		if (regulator_count_voltages(data->lcm_ibb) > 0)
 			regulator_set_voltage(data->lcm_ibb, 0, LCM_LAB_MAX_UV);
 
 		regulator_put(data->lcm_ibb);
 	}
-	if (data-> lcm_lab != NULL) {
+	if (data->lcm_lab != NULL) {
 		if (regulator_count_voltages(data->lcm_lab) > 0)
 			regulator_set_voltage(data->lcm_lab, 0, LCM_LAB_MAX_UV);
 
@@ -297,8 +304,8 @@ static void __always_inline nvt_irq_enable(bool enable)
 	desc = irq_to_desc(ts->client->irq);
 }
 
-inline int32_t CTP_I2C_READ(struct i2c_client *client, uint16_t address, uint8_t *buf,
-			    uint16_t len)
+inline int32_t CTP_I2C_READ(struct i2c_client *client, uint16_t address,
+			    uint8_t *buf, uint16_t len)
 {
 	struct i2c_msg msgs[2];
 	int32_t ret = -1;
@@ -323,8 +330,8 @@ inline int32_t CTP_I2C_READ(struct i2c_client *client, uint16_t address, uint8_t
 	return ret;
 }
 
-inline int32_t CTP_I2C_WRITE(struct i2c_client *client, uint16_t address, uint8_t *buf,
-			     uint16_t len)
+inline int32_t CTP_I2C_WRITE(struct i2c_client *client, uint16_t address,
+			     uint8_t *buf, uint16_t len)
 {
 	struct i2c_msg msg;
 	int32_t ret = -1;
@@ -381,8 +388,9 @@ inline int32_t nvt_clear_fw_status(void)
 {
 	uint8_t buf[8] = { 0 };
 
-	nvt_set_page(I2C_FW_Address, ts->mmap->EVENT_BUF_ADDR |
-		     EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE);
+	nvt_set_page(I2C_FW_Address,
+		     ts->mmap->EVENT_BUF_ADDR |
+			     EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE);
 
 	buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
 	buf[1] = 0x00;
@@ -399,8 +407,9 @@ inline int32_t nvt_check_fw_status(void)
 {
 	uint8_t buf[8] = { 0 };
 
-	nvt_set_page(I2C_FW_Address, ts->mmap->EVENT_BUF_ADDR |
-		     EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE);
+	nvt_set_page(I2C_FW_Address,
+		     ts->mmap->EVENT_BUF_ADDR |
+			     EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE);
 
 	buf[0] = EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE;
 	buf[1] = 0x00;
@@ -426,8 +435,8 @@ inline int32_t nvt_read_pid(void)
 	uint8_t buf[3] = { 0 };
 	int32_t ret = 0;
 
-	nvt_set_page(I2C_FW_Address, ts->mmap->EVENT_BUF_ADDR |
-		     EVENT_MAP_PROJECTID);
+	nvt_set_page(I2C_FW_Address,
+		     ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_PROJECTID);
 
 	buf[0] = EVENT_MAP_PROJECTID;
 	buf[1] = 0x00;
@@ -446,8 +455,8 @@ inline int32_t nvt_get_fw_info(void)
 	int32_t ret = 0;
 
 info_retry:
-	nvt_set_page(I2C_FW_Address, ts->mmap->EVENT_BUF_ADDR |
-		     EVENT_MAP_FWINFO);
+	nvt_set_page(I2C_FW_Address,
+		     ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_FWINFO);
 
 	buf[0] = EVENT_MAP_FWINFO;
 	CTP_I2C_READ(ts->client, I2C_FW_Address, buf, 17);
@@ -481,9 +490,11 @@ static inline void nvt_parse_dt(struct device *dev)
 	struct device_node *np = dev->of_node;
 
 #if NVT_TOUCH_SUPPORT_HW_RST
-	ts->reset_gpio = of_get_named_gpio_flags(np, "novatek,reset-gpio", 0, &ts->reset_flags);
+	ts->reset_gpio = of_get_named_gpio_flags(np, "novatek,reset-gpio", 0,
+						 &ts->reset_flags);
 #endif
-	ts->irq_gpio = of_get_named_gpio_flags(np, "novatek,irq-gpio", 0, &ts->irq_flags);
+	ts->irq_gpio = of_get_named_gpio_flags(np, "novatek,irq-gpio", 0,
+					       &ts->irq_flags);
 #else
 #if NVT_TOUCH_SUPPORT_HW_RST
 	ts->reset_gpio = NVT_TOUCH_RST_PIN;
@@ -498,7 +509,8 @@ static inline int nvt_gpio_config(struct nvt_ts_data *ts)
 
 #if NVT_TOUCH_SUPPORT_HW_RST
 	if (gpio_is_valid(ts->reset_gpio)) {
-		ret = gpio_request_one(ts->reset_gpio, GPIOF_OUT_INIT_HIGH, "NVT-tp-rst");
+		ret = gpio_request_one(ts->reset_gpio, GPIOF_OUT_INIT_HIGH,
+				       "NVT-tp-rst");
 		if (ret)
 			goto err_request_reset_gpio;
 	}
@@ -547,7 +559,8 @@ static inline uint8_t nvt_fw_recovery(uint8_t *point_data)
 
 static inline void nvt_ts_worker(struct work_struct *work)
 {
-	struct nvt_ts_data *ts = container_of(work, struct nvt_ts_data, irq_work);
+	struct nvt_ts_data *ts =
+		container_of(work, struct nvt_ts_data, irq_work);
 
 	int32_t ret;
 	int32_t i;
@@ -569,7 +582,8 @@ static inline void nvt_ts_worker(struct work_struct *work)
 
 	mutex_lock(&ts->lock);
 
-	ret = CTP_I2C_READ(ts->client, I2C_FW_Address, point_data, POINT_DATA_LEN + 1);
+	ret = CTP_I2C_READ(ts->client, I2C_FW_Address, point_data,
+			   POINT_DATA_LEN + 1);
 	if (unlikely(ret < 0))
 		goto XFER_ERROR;
 
@@ -599,11 +613,15 @@ static inline void nvt_ts_worker(struct work_struct *work)
 
 			press_id[input_id - 1] = 1;
 			input_mt_slot(ts->input_dev, input_id - 1);
-			input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, true);
+			input_mt_report_slot_state(ts->input_dev,
+						   MT_TOOL_FINGER, true);
 
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_X, input_x);
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, input_y);
-			input_report_abs(ts->input_dev, ABS_MT_PRESSURE, TOUCH_FORCE_NUM);
+			input_report_abs(ts->input_dev, ABS_MT_POSITION_X,
+					 input_x);
+			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y,
+					 input_y);
+			input_report_abs(ts->input_dev, ABS_MT_PRESSURE,
+					 TOUCH_FORCE_NUM);
 
 			finger_cnt++;
 		}
@@ -614,7 +632,8 @@ static inline void nvt_ts_worker(struct work_struct *work)
 			input_mt_slot(ts->input_dev, i);
 			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0);
 			input_report_abs(ts->input_dev, ABS_MT_PRESSURE, 0);
-			input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, false);
+			input_mt_report_slot_state(ts->input_dev,
+						   MT_TOOL_FINGER, false);
 		}
 	}
 
@@ -708,18 +727,20 @@ static inline int8_t nvt_ts_check_chip_ver_trim(void)
 		CTP_I2C_READ(ts->client, I2C_BLDR_Address, buf, 7);
 
 		if ((buf[1] == 0xFC) || ((buf[1] == 0xFF) && (buf[2] == 0xFF) &&
-		    (buf[3] == 0xFF))) {
+					 (buf[3] == 0xFF))) {
 			nvt_stop_crc_reboot();
 			continue;
 		}
 
 		for (list = 0; list < (sizeof(trim_id_table) /
-		     sizeof(struct nvt_ts_trim_id_table)); list++) {
+				       sizeof(struct nvt_ts_trim_id_table));
+		     list++) {
 			found_nvt_chip = 0;
 
 			for (i = 0; i < NVT_ID_BYTE_MAX; i++) {
 				if (trim_id_table[list].mask[i]) {
-					if (buf[i + 1] != trim_id_table[list].id[i])
+					if (buf[i + 1] !=
+					    trim_id_table[list].id[i])
 						break;
 				}
 			}
@@ -729,7 +750,9 @@ static inline int8_t nvt_ts_check_chip_ver_trim(void)
 
 			if (found_nvt_chip) {
 				ts->mmap = trim_id_table[list].mmap;
-				ts->carrier_system = trim_id_table[list].hwinfo->carrier_system;
+				ts->carrier_system =
+					trim_id_table[list]
+						.hwinfo->carrier_system;
 				ret = 0;
 				goto out;
 			} else {
@@ -746,7 +769,7 @@ out:
 }
 
 static inline int32_t nvt_ts_probe(struct i2c_client *client,
-			    const struct i2c_device_id *id)
+				   const struct i2c_device_id *id)
 {
 	int32_t ret = 0;
 #if WAKEUP_GESTURE
@@ -806,22 +829,27 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 	ts->max_touch_num = TOUCH_MAX_FINGER_NUM;
 	ts->int_trigger_type = INT_TRIGGER_TYPE;
 
-	ts->input_dev->evbit[0] = BIT_MASK(EV_SYN) | BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
+	ts->input_dev->evbit[0] =
+		BIT_MASK(EV_SYN) | BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
 	ts->input_dev->keybit[BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH);
 	ts->input_dev->propbit[0] = BIT(INPUT_PROP_DIRECT);
 
 	input_mt_init_slots(ts->input_dev, ts->max_touch_num, 0);
-	input_set_abs_params(ts->input_dev, ABS_MT_PRESSURE, 0, TOUCH_FORCE_NUM, 0, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_PRESSURE, 0, TOUCH_FORCE_NUM,
+			     0, 0);
 
 #if TOUCH_MAX_FINGER_NUM > 1
 	input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
-	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X, 0, ts->abs_x_max, 0, 0);
-	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0, ts->abs_y_max, 0, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X, 0, ts->abs_x_max,
+			     0, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0, ts->abs_y_max,
+			     0, 0);
 #endif
 
 #if WAKEUP_GESTURE
 	for (retry = 0; retry < ARRAY_SIZE(gesture_key_array); retry++) {
-		input_set_capability(ts->input_dev, EV_KEY, gesture_key_array[retry]);
+		input_set_capability(ts->input_dev, EV_KEY,
+				     gesture_key_array[retry]);
 	}
 	gesture_wakelock = wakeup_source_register(NULL, "poll-wake-lock");
 #endif
@@ -853,16 +881,19 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 #endif
 
 #if BOOT_UPDATE_FIRMWARE
-	nvt_fwu_wq = alloc_workqueue("nvt_fwu_wq", WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
+	nvt_fwu_wq =
+		alloc_workqueue("nvt_fwu_wq", WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
 	if (!nvt_fwu_wq) {
 		ret = -ENOMEM;
 		goto err_create_nvt_fwu_wq_failed;
 	}
 	INIT_DELAYED_WORK(&ts->nvt_fwu_work, Boot_Update_Firmware);
-	queue_delayed_work(nvt_fwu_wq, &ts->nvt_fwu_work, msecs_to_jiffies(14000));
+	queue_delayed_work(nvt_fwu_wq, &ts->nvt_fwu_work,
+			   msecs_to_jiffies(14000));
 #endif
 
-	ts->coord_workqueue = alloc_workqueue("nvt_ts_workqueue", WQ_HIGHPRI, 0);
+	ts->coord_workqueue =
+		alloc_workqueue("nvt_ts_workqueue", WQ_HIGHPRI, 0);
 	if (!ts->coord_workqueue) {
 		ret = -ENOMEM;
 		goto err_create_nvt_ts_workqueue_failed;
@@ -871,7 +902,7 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 
 #if WAKEUP_GESTURE
 	nvt_gesture_mode_proc = proc_create(NVT_GESTURE_MODE, 0666, NULL,
-				&gesture_mode_proc_ops);
+					    &gesture_mode_proc_ops);
 #endif
 
 	ts->fb_notif.notifier_call = nvt_fb_notifier_callback;
@@ -1032,7 +1063,7 @@ static int32_t __always_inline nvt_ts_suspend(struct device *dev)
 	buf[0] = EVENT_MAP_HOST_CMD;
 	buf[1] = 0x11;
 	CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
-	
+
 	nvt_set_page(I2C_FW_Address, 0x11a50);
 	buf[0] = 0x11a50 & 0xff;
 	buf[1] = 0x11;
@@ -1084,7 +1115,8 @@ static int32_t __always_inline nvt_ts_resume(struct device *dev)
 }
 
 static int __always_inline nvt_fb_notifier_callback(struct notifier_block *self,
-						    unsigned long event, void *data)
+						    unsigned long event,
+						    void *data)
 {
 	struct fb_event *evdata = data;
 	int *blank;
@@ -1104,16 +1136,12 @@ static int __always_inline nvt_fb_notifier_callback(struct notifier_block *self,
 	return 0;
 }
 
-static const struct i2c_device_id nvt_ts_id[] = {
-	{ NVT_I2C_NAME, 0 },
-	{}
-};
+static const struct i2c_device_id nvt_ts_id[] = { { NVT_I2C_NAME, 0 }, {} };
 
 #ifdef CONFIG_OF
-static struct of_device_id nvt_match_table[] = {
-	{ .compatible = "novatek,NVT-ts" },
-	{}
-};
+static struct of_device_id nvt_match_table[] = { { .compatible =
+							   "novatek,NVT-ts" },
+						 {} };
 #endif
 
 static struct i2c_driver nvt_i2c_driver = {
