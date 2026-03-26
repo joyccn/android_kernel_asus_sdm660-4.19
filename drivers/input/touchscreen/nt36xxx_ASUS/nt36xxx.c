@@ -40,8 +40,7 @@ static ssize_t nvt_gesture_mode_get_proc(struct file *file, char __user *buffer,
 					 size_t size, loff_t *ppos)
 {
 	char ptr[64] = { 0 };
-	size_t len =
-		(gesture_mode == 0) ? sprintf(ptr, "0\n") : sprintf(ptr, "1\n");
+	size_t len = (gesture_mode == 0) ? sprintf(ptr, "0\n") : sprintf(ptr, "1\n");
 	return simple_read_from_buffer(buffer, size, ppos, ptr, len);
 }
 
@@ -82,7 +81,7 @@ static const struct file_operations gesture_mode_proc_ops = {
 	.write = nvt_gesture_mode_set_proc,
 };
 
-const uint16_t gesture_key_array[] = {
+static const uint16_t gesture_key_array[] = {
 	KEY_TP_GESTURE_C, // GESTURE_WORD_C
 	KEY_TP_GESTURE_W, // GESTURE_WORD_W
 	KEY_TP_GESTURE_V, // GESTURE_WORD_V
@@ -559,8 +558,7 @@ static inline uint8_t nvt_fw_recovery(uint8_t *point_data)
 
 static inline void nvt_ts_worker(struct work_struct *work)
 {
-	struct nvt_ts_data *ts =
-		container_of(work, struct nvt_ts_data, irq_work);
+	struct nvt_ts_data *ts = container_of(work, struct nvt_ts_data, irq_work);
 
 	int32_t ret;
 	int32_t i;
@@ -601,6 +599,7 @@ static inline void nvt_ts_worker(struct work_struct *work)
 	for (i = 0; i < ts->max_touch_num; i++) {
 		position = 1 + 6 * i;
 		input_id = (uint8_t)(point_data[position] >> 3);
+
 		if ((input_id == 0) || (input_id > ts->max_touch_num))
 			continue;
 
@@ -613,15 +612,11 @@ static inline void nvt_ts_worker(struct work_struct *work)
 
 			press_id[input_id - 1] = 1;
 			input_mt_slot(ts->input_dev, input_id - 1);
-			input_mt_report_slot_state(ts->input_dev,
-						   MT_TOOL_FINGER, true);
+			input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, true);
 
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_X,
-					 input_x);
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y,
-					 input_y);
-			input_report_abs(ts->input_dev, ABS_MT_PRESSURE,
-					 TOUCH_FORCE_NUM);
+			input_report_abs(ts->input_dev, ABS_MT_POSITION_X, input_x);
+			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, input_y);
+			input_report_abs(ts->input_dev, ABS_MT_PRESSURE, TOUCH_FORCE_NUM);
 
 			finger_cnt++;
 		}
@@ -632,8 +627,7 @@ static inline void nvt_ts_worker(struct work_struct *work)
 			input_mt_slot(ts->input_dev, i);
 			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0);
 			input_report_abs(ts->input_dev, ABS_MT_PRESSURE, 0);
-			input_mt_report_slot_state(ts->input_dev,
-						   MT_TOOL_FINGER, false);
+			input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, false);
 		}
 	}
 
@@ -726,21 +720,17 @@ static inline int8_t nvt_ts_check_chip_ver_trim(void)
 		buf[6] = 0x00;
 		CTP_I2C_READ(ts->client, I2C_BLDR_Address, buf, 7);
 
-		if ((buf[1] == 0xFC) || ((buf[1] == 0xFF) && (buf[2] == 0xFF) &&
-					 (buf[3] == 0xFF))) {
+		if ((buf[1] == 0xFC) || ((buf[1] == 0xFF) && (buf[2] == 0xFF) && (buf[3] == 0xFF))) {
 			nvt_stop_crc_reboot();
 			continue;
 		}
 
-		for (list = 0; list < (sizeof(trim_id_table) /
-				       sizeof(struct nvt_ts_trim_id_table));
-		     list++) {
+		for (list = 0; list < (sizeof(trim_id_table) / sizeof(struct nvt_ts_trim_id_table)); list++) {
 			found_nvt_chip = 0;
 
 			for (i = 0; i < NVT_ID_BYTE_MAX; i++) {
 				if (trim_id_table[list].mask[i]) {
-					if (buf[i + 1] !=
-					    trim_id_table[list].id[i])
+					if (buf[i + 1] != trim_id_table[list].id[i])
 						break;
 				}
 			}
@@ -750,9 +740,7 @@ static inline int8_t nvt_ts_check_chip_ver_trim(void)
 
 			if (found_nvt_chip) {
 				ts->mmap = trim_id_table[list].mmap;
-				ts->carrier_system =
-					trim_id_table[list]
-						.hwinfo->carrier_system;
+				ts->carrier_system = trim_id_table[list].hwinfo->carrier_system;
 				ret = 0;
 				goto out;
 			} else {
@@ -848,8 +836,7 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 
 #if WAKEUP_GESTURE
 	for (retry = 0; retry < ARRAY_SIZE(gesture_key_array); retry++) {
-		input_set_capability(ts->input_dev, EV_KEY,
-				     gesture_key_array[retry]);
+		input_set_capability(ts->input_dev, EV_KEY, gesture_key_array[retry]);
 	}
 	gesture_wakelock = wakeup_source_register(NULL, "poll-wake-lock");
 #endif
@@ -881,8 +868,7 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 #endif
 
 #if BOOT_UPDATE_FIRMWARE
-	nvt_fwu_wq =
-		alloc_workqueue("nvt_fwu_wq", WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
+	nvt_fwu_wq = alloc_workqueue("nvt_fwu_wq", WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
 	if (!nvt_fwu_wq) {
 		ret = -ENOMEM;
 		goto err_create_nvt_fwu_wq_failed;
@@ -892,8 +878,7 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 			   msecs_to_jiffies(14000));
 #endif
 
-	ts->coord_workqueue =
-		alloc_workqueue("nvt_ts_workqueue", WQ_HIGHPRI, 0);
+	ts->coord_workqueue = alloc_workqueue("nvt_ts_workqueue", WQ_HIGHPRI, 0);
 	if (!ts->coord_workqueue) {
 		ret = -ENOMEM;
 		goto err_create_nvt_ts_workqueue_failed;
@@ -915,9 +900,8 @@ static inline int32_t nvt_ts_probe(struct i2c_client *client,
 
 	return 0;
 
-	fb_unregister_client(&ts->fb_notif);
-
 err_register_fb_notif_failed:
+	fb_unregister_client(&ts->fb_notif);
 err_create_nvt_ts_workqueue_failed:
 	if (ts->coord_workqueue)
 		destroy_workqueue(ts->coord_workqueue);
@@ -1006,7 +990,6 @@ static inline int32_t nvt_ts_remove(struct i2c_client *client)
 static inline void nvt_ts_shutdown(struct i2c_client *client)
 {
 	nvt_irq_enable(false);
-
 	fb_unregister_client(&ts->fb_notif);
 
 #if BOOT_UPDATE_FIRMWARE
@@ -1034,7 +1017,6 @@ static int32_t __always_inline nvt_ts_suspend(struct device *dev)
 		return 0;
 
 	mutex_lock(&ts->lock);
-
 	bTouchIsAwake = 0;
 
 #if WAKEUP_GESTURE
@@ -1113,7 +1095,6 @@ static int32_t __always_inline nvt_ts_resume(struct device *dev)
 #endif
 
 	bTouchIsAwake = 1;
-
 	mutex_unlock(&ts->lock);
 	return 0;
 }
@@ -1124,8 +1105,7 @@ static int __always_inline nvt_fb_notifier_callback(struct notifier_block *self,
 {
 	struct fb_event *evdata = data;
 	int *blank;
-	struct nvt_ts_data *ts =
-		container_of(self, struct nvt_ts_data, fb_notif);
+	struct nvt_ts_data *ts = container_of(self, struct nvt_ts_data, fb_notif);
 
 	if (evdata && evdata->data && event == FB_EARLY_EVENT_BLANK) {
 		blank = evdata->data;
@@ -1140,12 +1120,16 @@ static int __always_inline nvt_fb_notifier_callback(struct notifier_block *self,
 	return 0;
 }
 
-static const struct i2c_device_id nvt_ts_id[] = { { NVT_I2C_NAME, 0 }, {} };
+static const struct i2c_device_id nvt_ts_id[] = {
+	{ NVT_I2C_NAME, 0 },
+	{},
+};
 
 #ifdef CONFIG_OF
-static struct of_device_id nvt_match_table[] = { { .compatible =
-							   "novatek,NVT-ts" },
-						 {} };
+static struct of_device_id nvt_match_table[] = {
+	{ .compatible = "novatek,NVT-ts" },
+	{},
+};
 #endif
 
 static struct i2c_driver nvt_i2c_driver = {

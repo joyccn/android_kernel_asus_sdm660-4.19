@@ -13,8 +13,6 @@
 #endif
 #include "nt36xxx.h"
 
-#if BOOT_UPDATE_FIRMWARE
-
 #define SIZE_4KB 4096
 #define FLASH_SECTOR_SIZE SIZE_4KB
 #define SIZE_64KB 65536
@@ -746,4 +744,3 @@ void Boot_Update_Firmware(struct work_struct *work)
 	mutex_unlock(&ts->lock);
 	update_firmware_release();
 }
-#endif /* BOOT_UPDATE_FIRMWARE */
