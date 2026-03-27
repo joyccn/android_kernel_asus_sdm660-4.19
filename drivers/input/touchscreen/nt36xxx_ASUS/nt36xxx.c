@@ -18,6 +18,7 @@
 #include <linux/of_irq.h>
 #include <linux/notifier.h>
 #include <linux/fb.h>
+#include <linux/init.h>
 #include "nt36xxx.h"
 
 struct nvt_ts_data *ts;
@@ -36,6 +37,30 @@ static struct wakeup_source *gesture_wakelock;
 #define NVT_GESTURE_MODE "tpd_gesture"
 
 static long gesture_mode = 0;
+static int __init read_gesture_cmd(char *s)
+{
+	unsigned int val = 0;
+
+	if (!s) {
+		pr_err("NVT-ts: %s: cmdline setup is empty.\n", __func__);
+		goto skip;
+	}
+
+	// Should accept only 0 and 1 (boolean)
+	val = simple_strtoul(s, NULL, 0);
+	if (val > 0)
+		val = 1;
+
+	if (val == 1) {
+		pr_info("NVT-ts: DT2W is enabled by cmdline\n");
+		gesture_mode = 0x1FF;
+	}
+
+skip:
+	return 1;
+}
+__setup("nvt_dt2w.enabled=", read_gesture_cmd);
+
 static ssize_t nvt_gesture_mode_get_proc(struct file *file, char __user *buffer,
 					 size_t size, loff_t *ppos)
 {
