@@ -1091,6 +1091,10 @@ static int32_t __always_inline nvt_ts_resume(struct device *dev)
 	if (bTouchIsAwake)
 		return 0;
 
+#if NVT_POWER_SOURCE_CUST_EN	
+	nvt_lcm_power_source_ctrl(ts, 1);
+#endif
+
 	mutex_lock(&ts->lock);
 
 #if NVT_TOUCH_SUPPORT_HW_RST
