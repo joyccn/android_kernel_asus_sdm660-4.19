@@ -1007,14 +1007,14 @@ static inline void nvt_ts_shutdown(struct i2c_client *client)
 
 static int32_t __always_inline nvt_ts_suspend(struct device *dev)
 {
-#if NVT_POWER_SOURCE_CUST_EN
-	struct nvt_ts_data *data = dev_get_drvdata(dev);
-#endif
+	struct nvt_ts_data *ts;
 	uint8_t buf[4] = { 0 };
 	uint32_t i = 0;
 
 	if (!bTouchIsAwake)
 		return 0;
+
+	ts = dev_get_drvdata(dev);
 
 	mutex_lock(&ts->lock);
 	bTouchIsAwake = 0;
@@ -1032,7 +1032,7 @@ static int32_t __always_inline nvt_ts_suspend(struct device *dev)
 		buf[1] = 0x11;
 		CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
 #if NVT_POWER_SOURCE_CUST_EN
-		nvt_lcm_power_source_ctrl(data, 0);
+		nvt_lcm_power_source_ctrl(ts, 0);
 #endif
 	} else {
 		buf[0] = EVENT_MAP_HOST_CMD;
@@ -1070,8 +1070,12 @@ static int32_t __always_inline nvt_ts_suspend(struct device *dev)
 
 static int32_t __always_inline nvt_ts_resume(struct device *dev)
 {
+	struct nvt_ts_data *ts;
+
 	if (bTouchIsAwake)
 		return 0;
+
+	ts = dev_get_drvdata(dev);
 
 #if NVT_POWER_SOURCE_CUST_EN	
 	nvt_lcm_power_source_ctrl(ts, 1);
