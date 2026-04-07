@@ -234,7 +234,7 @@ __releases(fiq->lock)
 		fuse_len_args(req->args->in_numargs,
 			      (struct fuse_arg *) req->args->in_args);
 	list_add_tail(&req->list, &fiq->pending);
-	fiq->ops->wake_pending_and_unlock(fiq,sync);
+	fiq->ops->wake_pending_and_unlock(fiq, sync);
 }
 
 void fuse_queue_forget(struct fuse_conn *fc, struct fuse_forget_link *forget,
@@ -693,10 +693,6 @@ static void fuse_copy_finish(struct fuse_copy_state *cs)
 			flush_dcache_page(cs->pg);
 			set_page_dirty_lock(cs->pg);
 		}
-		/*
-		 * The page could be GUP page(see iov_iter_get_pages in
-		 * fuse_copy_fill) so use put_page to release it.
-		 */
 		put_page(cs->pg);
 	}
 	cs->pg = NULL;
@@ -963,7 +959,7 @@ static int fuse_copy_page(struct fuse_copy_state *cs, struct page **pagep,
 			 * Can't control lifetime of pipe buffers, so always
 			 * copy user pages.
 			 */
-			if (cs->req->user_pages) {
+			if (cs->req->args->user_pages) {
 				err = fuse_copy_fill(cs);
 				if (err)
 					return err;
@@ -1950,7 +1946,7 @@ static ssize_t fuse_dev_do_write(struct fuse_dev *fud,
 		err = copy_out_args(cs, req->args, nbytes);
 	fuse_copy_finish(cs);
 
-	if (!err && req->in.h.opcode == FUSE_CANONICAL_PATH) {
+	if (!err && req->in.h.opcode == FUSE_CANONICAL_PATH && !oh.error) {
 		char *path = (char *)req->args->out_args[0].value;
 
 		path[req->args->out_args[0].size - 1] = 0;
