@@ -75,6 +75,12 @@ const char *i2c_msm_err_str_table[] = {
 	[I2C_MSM_ERR_OVR_UNDR_RUN] = "OVER_UNDER_RUN_ERROR",
 };
 
+static unsigned int nack_err_cnt = 0;
+static bool is_enough_nack_cnt(unsigned int count)
+{
+	return count >= 5;
+}
+
 static void i2c_msm_dbg_dump_diag(struct i2c_msm_ctrl *ctrl,
 				bool use_param_vals, u32 status, u32 qup_op)
 {
@@ -92,6 +98,13 @@ static void i2c_msm_dbg_dump_diag(struct i2c_msm_ctrl *ctrl,
 	if ((status & QUP_PACKET_NACKED) && (xfer->msgs->addr == 0x38 || xfer->msgs->addr == 0x1d)) {
 		dev_dbg(ctrl->dev, "%s: i2c slave suspended", __func__);
 		return;
+	}
+
+	if ((xfer->err == I2C_MSM_ERR_NACK) && (xfer->msgs->addr == 0x48)) {
+		if (is_enough_nack_cnt(nack_err_cnt)) {
+			return;
+		}
+		nack_err_cnt += 1;
 	}
 
 	if (xfer->err == I2C_MSM_ERR_TIMEOUT) {
