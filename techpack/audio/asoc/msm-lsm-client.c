@@ -399,7 +399,6 @@ static void lsm_event_handler(uint32_t opcode, uint32_t token,
 			dev_err(rtd->dev, "%s: no memory for event status\n",
 				__func__);
 			spin_unlock_irqrestore(&prtd->event_lock, flags);
-			__pm_relax(prtd->ws);
 			return;
 		}
 		/*
