@@ -36,10 +36,6 @@ EXTRA_CFLAGS += -DTFA_DEBUG -DDEBUG
 snd-soc-tfa9874-objs += src/tfa_debug.o
 endif
 
-ifeq ($(CONFIG_MACH_ASUS_SDM660),y)
-EXTRA_CFLAGS += -DTFA9874_NONDSP_STEREO
-endif
-
 else
 
 MAKEARCH := $(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE)

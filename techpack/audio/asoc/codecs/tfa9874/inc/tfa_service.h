@@ -1,5 +1,6 @@
-/*
- * Copyright (C) 2014 NXP Semiconductors, All Rights Reserved.
+/* 
+ * Copyright (C) 2014-2020 NXP Semiconductors, All Rights Reserved.
+ * Copyright 2021 GOODIX 
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -7,9 +8,14 @@
  *
  */
 
+
+
 #ifndef TFA_SERVICE_H
 #define TFA_SERVICE_H
 
+//#include "config.h"
+// workaround for Visual Studio: 
+// fatal error C1083: Cannot open include file: 'config.h': No such file or directory
 #ifdef __KERNEL__
 #include <linux/types.h>
 #else
@@ -17,10 +23,10 @@
 #endif
 #ifdef __cplusplus
 extern "C" {
-#include "NXP_I2C.h"
+#include "TFA_I2C.h"
 #endif
 
-#define TFA98XX_API_REV_STR "v6.5.0"
+#define TFA98XX_API_REV_STR "v6.7.14"
 
 #include "tfa_device.h"
 
@@ -248,13 +254,13 @@ struct Tfa98xx_StateInfo {
 	struct Tfa98xx_DrcStateInfo drcState; /* DRC state, when enabled */
 };
 
-typedef struct nxpTfaMsg {
+typedef struct TfaMsg {
 	uint8_t msg_size;
 	unsigned char cmdId[3];
 	int data[9];
-} nxpTfaMsg_t;
+} TfaMsg_t;
 
-typedef struct nxp_vstep_msg {
+typedef struct tfa_vstep_msg {
 	int			fw_version;
 	uint8_t		no_of_vsteps;
 	uint16_t	reg_no;
@@ -266,15 +272,15 @@ typedef struct nxp_vstep_msg {
 	uint8_t		*msg_filter_coef;
 	uint32_t	mbdrc_length;
     uint8_t		*msg_mbdrc;
-} nxp_vstep_msg_t;
+} tfa_vstep_msg_t;
 
-typedef struct nxpTfaGroup {
+typedef struct TfaGroup {
 	uint8_t msg_size;
 	uint8_t profileId[64];
-} nxpTfaGroup_t;
+} TfaGroup_t;
 
 
-struct nxpTfa98xx_Memtrack_data {
+struct Tfa98xx_Memtrack_data {
 	int length;
 	float mValues[MEMTRACK_MAX_WORDS];
 	int mAdresses[MEMTRACK_MAX_WORDS];
@@ -681,7 +687,7 @@ enum Tfa98xx_Error tfa98xx_write_raw(struct tfa_device *tfa,
 		  	  	  const unsigned char data[]);
 
 /* support for converting error codes into text */
-//*** const char *tfa98xx_get_error_string(enum Tfa98xx_Error error);
+const char *tfa98xx_get_error_string(enum Tfa98xx_Error error);
 
 /**
  * convert signed 24 bit integers to 32bit aligned bytes
@@ -738,21 +744,21 @@ enum Tfa98xx_Error tfa98xx_dsp_write_drc(struct tfa_device *tfa, int length, con
  * @param length length of the character buffer to write
  * @param buf character buffer to write
 */
-enum Tfa98xx_Error tfa_dsp_msg(struct tfa_device *tfa, int length, const char *buf);
+enum Tfa98xx_Error tfa_dsp_msg_rpc(struct tfa_device *tfa, int length, const char *buf);
 
 
 /**
  * The wrapper functions to call the dsp msg, register and memory function for tfa or probus
  */
-enum Tfa98xx_Error dsp_msg(struct tfa_device *tfa, int length, const char *buf);
-enum Tfa98xx_Error dsp_msg_read(struct tfa_device *tfa, int length, unsigned char *bytes);
-enum Tfa98xx_Error reg_write(struct tfa_device *tfa, unsigned char subaddress, unsigned short value);
-enum Tfa98xx_Error reg_read(struct tfa_device *tfa, unsigned char subaddress, unsigned short *value);
-enum Tfa98xx_Error mem_write(struct tfa_device *tfa, unsigned short address, int value, int memtype);
-enum Tfa98xx_Error mem_read(struct tfa_device *tfa, unsigned int start_offset, int num_words, int *pValues);
+enum Tfa98xx_Error tfa_dsp_msg(struct tfa_device *tfa, int length, const char *buf);
+enum Tfa98xx_Error tfa_dsp_msg_read(struct tfa_device *tfa, int length, unsigned char *bytes);
+enum Tfa98xx_Error tfa_reg_write(struct tfa_device *tfa, unsigned char subaddress, unsigned short value);
+enum Tfa98xx_Error tfa_reg_read(struct tfa_device *tfa, unsigned char subaddress, unsigned short *value);
+enum Tfa98xx_Error tfa_mem_write(struct tfa_device *tfa, unsigned short address, int value, int memtype);
+enum Tfa98xx_Error tfa_mem_read(struct tfa_device *tfa, unsigned int start_offset, int num_words, int *pValues);
 
-enum Tfa98xx_Error dsp_partial_coefficients(struct tfa_device *tfa, uint8_t *prev, uint8_t *next);
-
+enum Tfa98xx_Error tfa_dsp_partial_coefficients(struct tfa_device *tfa, uint8_t *prev, uint8_t *next);
+int tfa_is_94_N2_device(struct tfa_device *tfa);
 /**
  * write/read raw msg functions:
  * the buffer is provided in little endian format, each word occupying 3 bytes, length is in bytes.
@@ -796,7 +802,7 @@ enum Tfa98xx_Error tfa_dsp_msg_status(struct tfa_device *tfa, int *pRpcStatus);
  * @param length number of bytes of the message
  * @param bytes pointer to unsigned char buffer
 */
-enum Tfa98xx_Error tfa_dsp_msg_read(struct tfa_device *tfa,int length, unsigned char *bytes);
+enum Tfa98xx_Error tfa_dsp_msg_read_rpc(struct tfa_device *tfa,int length, unsigned char *bytes);
 
 int tfa_set_bf(struct tfa_device *tfa, const uint16_t bf, const uint16_t value);
 int tfa_set_bf_volatile(struct tfa_device *tfa, const uint16_t bf, const uint16_t value);
@@ -820,13 +826,50 @@ uint16_t tfa_get_bf_value(const uint16_t bf, const uint16_t reg_value);
 int tfa_write_reg(struct tfa_device *tfa, const uint16_t bf, const uint16_t reg_value);
 int tfa_read_reg(struct tfa_device *tfa, const uint16_t bf);
 
+/* bitfield */
+/** 
+ * get the datasheet or bitfield name corresponding to the bitfield number
+ * @param num is the number for which to get the bitfield name
+ * @param rev is the device type
+ */
+char *tfaContBfName(uint16_t num, unsigned short rev);
+
+/** 
+ * get the datasheet name corresponding to the bitfield number
+ * @param num is the number for which to get the bitfield name
+ * @param rev is the device type
+ */
+char *tfaContDsName(uint16_t num, unsigned short rev);
+
+/** 
+ * get the bitfield name corresponding to the bitfield number
+ * @param num is the number for which to get the bitfield name
+ * @param rev is the device type
+ */
+char *tfaContBitName(uint16_t num, unsigned short rev);
+
+/** 
+ * get the bitfield number corresponding to the bitfield name
+ * @param name is the bitfield name for which to get the bitfield number
+ * @param rev is the device type
+ */
+uint16_t tfaContBfEnum(const char *name, unsigned short rev);
+
+/** 
+* get the bitfield number corresponding to the bitfield name, checks for all devices
+* @param name is the bitfield name for which to get the bitfield number
+ */
+uint16_t tfaContBfEnumAny(const char *name);
+
 #define TFA_FAM(tfa, fieldname) ((tfa->tfa_family == 1) ? TFA1_BF_##fieldname :  TFA2_BF_##fieldname)
 #define TFA_FAM_FW(tfa, fwname) ((tfa->tfa_family == 1) ? TFA1_FW_##fwname :  TFA2_FW_##fwname)
+#define TFA2_FAM_TDM(tfa, fieldname) (((tfa->rev & 0xff) == 0x94) ? TFA9894_BF_##fieldname :  TFA2_BF_##fieldname)
 
 /* set/get bit fields to HW register*/
 #define TFA_SET_BF(tfa, fieldname, value) tfa_set_bf(tfa, TFA_FAM(tfa, fieldname), value)
 #define TFA_SET_BF_VOLATILE(tfa, fieldname, value) tfa_set_bf_volatile(tfa, TFA_FAM(tfa, fieldname), value)
 #define TFA_GET_BF(tfa, fieldname) tfa_get_bf(tfa, TFA_FAM(tfa, fieldname))
+
 
 /* set/get bit field in variable */
 #define TFA_SET_BF_VALUE(tfa, fieldname, bf_value, p_reg_value) tfa_set_bf_value(TFA_FAM(tfa, fieldname), bf_value, p_reg_value)
@@ -916,7 +959,7 @@ enum Tfa98xx_Error tfa_cf_powerup(struct tfa_device *tfa);
  * print the current device manager state
  * @param tfa the device struct pointer
  */
-enum Tfa98xx_Error show_current_state(struct tfa_device *tfa);
+enum Tfa98xx_Error tfa_show_current_state(struct tfa_device *tfa);
 
 /** 
  * Init registers and coldboot dsp 
@@ -962,16 +1005,7 @@ enum Tfa98xx_Error tfa_status(struct tfa_device *tfa);
  */
 int tfa_dev_get_mtpb(struct tfa_device *tfa);
 
-/* * Set manager state to operating state with coolflux disabled.
-*
-*
-*  @param[in] tfa device description structure
-*  @return Tfa98xx_Error_Ok when successfull, error otherwise.
-*/
-enum Tfa98xx_Error tfa98xx_set_calib_state(struct tfa_device *tfa);
-
-/* the ops wrapper for tfa98xx_faim_protect */
-enum Tfa98xx_Error tfa98xx_faim_protect(struct tfa_device *tfa, int state);
+enum Tfa98xx_Error tfaGetFwApiVersion(struct tfa_device *tfa, unsigned char *pFirmwareVersion);
 #ifdef __cplusplus
 }
 #endif
