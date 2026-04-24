@@ -7,14 +7,6 @@
 # export CROSS_COMPILE=arm-linux-gnueabihf-
 # export KDIR=../linux
 
-
-# In case of out of tree build, build as a module
-# (when build inside kernel we will not enter this directory and this will have no effect)
-ifeq ($(CONFIG_SND_SOC_TFA9874),)
-CONFIG_SND_SOC_TFA9874 := m
-endif
-
-ifneq ($(KERNELRELEASE),)
 # debugging support (also enables trace_printk)
 EXTRA_CFLAGS += -DDEBUG
 
@@ -34,17 +26,4 @@ subdir-ccflags-y := $(call cc-disable-warning, enum-conversion)
 ifdef TFA_DEBUG
 EXTRA_CFLAGS += -DTFA_DEBUG -DDEBUG
 snd-soc-tfa9874-objs += src/tfa_debug.o
-endif
-
-else
-
-MAKEARCH := $(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE)
-
-all:
-	$(MAKEARCH) -C $(KDIR) M=$(PWD) modules
-
-clean:
-	$(MAKEARCH) -C $(KDIR) M=$(PWD) clean
-	rm -f $(snd-soc-tfa98xx-objs)
-
 endif
