@@ -101,7 +101,7 @@ module_param(pcm_sample_format, int, S_IRUGO);
 MODULE_PARM_DESC(pcm_sample_format,
 		 "PCM sample format: 0=S16_LE, 1=S24_LE, 2=S32_LE, 3=dynamic\n");
 
-static int pcm_no_constraint = 1;
+static int pcm_no_constraint = 0;
 module_param(pcm_no_constraint, int, S_IRUGO);
 MODULE_PARM_DESC(pcm_no_constraint,
 		 "do not use constraints for PCM parameters\n");
@@ -331,6 +331,15 @@ static void tfa98xx_inputdev_unregister(struct tfa98xx *tfa98xx)
 {
 	__tfa98xx_inputdev_check_register(tfa98xx, true);
 }
+
+#ifdef CONFIG_MACH_ASUS_SDM660
+int send_tfa_cal_apr(void *buf, int cmd_size, bool bRead)
+{
+	return 0;
+}
+#else
+extern int send_tfa_cal_apr(void *buf, int cmd_size, bool bRead);
+#endif
 
 #ifdef CONFIG_DEBUG_FS
 /* OTC reporting
@@ -656,8 +665,8 @@ static ssize_t tfa98xx_dbgfs_dsp_state_set(struct file *file,
 	} else if (!strncmp(buf, mon_start_cmd, sizeof(mon_start_cmd) - 1)) {
 		pr_info("[0x%x] Manual start of monitor thread...\n",
 			tfa98xx->i2c->addr);
-		queue_delayed_work(system_power_efficient_wq, &tfa98xx->monitor_work,
-				   HZ);
+		queue_delayed_work(system_power_efficient_wq,
+				   &tfa98xx->monitor_work, HZ);
 	} else if (!strncmp(buf, mon_stop_cmd, sizeof(mon_stop_cmd) - 1)) {
 		pr_info("[0x%x] Manual stop of monitor thread...\n",
 			tfa98xx->i2c->addr);
@@ -724,7 +733,14 @@ static ssize_t tfa98xx_dbgfs_rpc_read(struct file *file, char __user *user_buf,
 	}
 
 	mutex_lock(&tfa98xx->dsp_lock);
+#ifdef CONFIG_MACH_ASUS_SDM660
+	if (tfa98xx->tfa->is_probus_device)
+		error = send_tfa_cal_apr(buffer, count, true);
+	else
+		error = tfa_dsp_msg_read(tfa98xx->tfa, count, buffer);
+#else
 	error = tfa_dsp_msg_read(tfa98xx->tfa, count, buffer);
+#endif
 	mutex_unlock(&tfa98xx->dsp_lock);
 	if (error != Tfa98xx_Error_Ok) {
 		pr_debug("[0x%x] tfa_dsp_msg_read error: %d\n",
@@ -769,8 +785,27 @@ static ssize_t tfa98xx_dbgfs_rpc_send(struct file *file,
 	}
 	msg_file->size = count;
 
-	if (copy_from_user(msg_file->data, user_buf, count))
+	if (copy_from_user(msg_file->data, user_buf, count)) {
+		kfree(msg_file);
 		return -EFAULT;
+	}
+
+#ifdef CONFIG_MACH_ASUS_SDM660
+	if (tfa98xx->tfa->is_probus_device) {
+		mutex_lock(&tfa98xx->dsp_lock);
+		error = send_tfa_cal_apr(msg_file->data, msg_file->size, false);
+		if (error != Tfa98xx_Error_Ok) {
+			pr_debug("[0x%x] dsp_msg error: %d\n",
+				 tfa98xx->i2c->addr, error);
+			err = -EIO;
+		}
+		mutex_unlock(&tfa98xx->dsp_lock);
+		mdelay(2);
+		kfree(msg_file);
+
+		return err ? err : count;
+	}
+#endif
 
 	mutex_lock(&tfa98xx->dsp_lock);
 	if ((msg_file->data[0] == 'M') && (msg_file->data[1] == 'G')) {
@@ -1269,6 +1304,17 @@ static int tfa98xx_set_profile(struct snd_kcontrol *kcontrol,
 		tfa98xx->profile = prof_idx;
 		tfa98xx->vstep = tfa98xx->prof_vsteps[prof_idx];
 
+#ifdef CONFIG_MACH_ASUS_SDM660
+		/* Flag DSP as invalidated as the profile change may invalidate the
+		 * current DSP configuration. That way, further stream start can
+		 * trigger a tfa_dev_start.
+		 */
+		if (tfa98xx->tfa->is_probus_device) {
+			tfa98xx->dsp_init = TFA98XX_DSP_INIT_INVALIDATED;
+			continue;
+		}
+#endif
+
 		/* Don't call tfa_dev_start() if there is no clock. */
 		mutex_lock(&tfa98xx->dsp_lock);
 		tfa98xx_dsp_system_stable(tfa98xx->tfa, &ready);
@@ -1451,6 +1497,77 @@ static int tfa98xx_get_cal_ctl(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+#ifdef CONFIG_MACH_ASUS_SDM660
+
+#define CHIP_SELECTOR_STEREO (0)
+#define CHIP_SELECTOR_LEFT (1)
+#define CHIP_SELECTOR_RIGHT (2)
+#define CHIP_SELECTOR_RCV (3)
+#define CHIP_LEFT_ADDR (0x34)
+#define CHIP_RIGHT_ADDR (0x35)
+#define CHIP_RCV_ADDR (0x34)
+
+static int tfa98xx_info_stereo_ctl(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 1;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = 3;
+	return 0;
+}
+
+static int tfa98xx_set_stereo_ctl(struct snd_kcontrol *kcontrol,
+				  struct snd_ctl_elem_value *ucontrol)
+{
+	struct tfa98xx *tfa98xx;
+	int selector;
+
+	selector = ucontrol->value.integer.value[0];
+
+	mutex_lock(&tfa98xx_mutex);
+	list_for_each_entry (tfa98xx, &tfa98xx_device_list, list) {
+		if (selector == CHIP_SELECTOR_LEFT) {
+			if (tfa98xx->i2c->addr == CHIP_LEFT_ADDR)
+				tfa98xx->flags |= TFA98XX_FLAG_CHIP_SELECTED;
+			else
+				tfa98xx->flags &= ~TFA98XX_FLAG_CHIP_SELECTED;
+		} else if (selector == CHIP_SELECTOR_RIGHT) {
+			if (tfa98xx->i2c->addr == CHIP_RIGHT_ADDR)
+				tfa98xx->flags |= TFA98XX_FLAG_CHIP_SELECTED;
+			else
+				tfa98xx->flags &= ~TFA98XX_FLAG_CHIP_SELECTED;
+		} else if (selector == CHIP_SELECTOR_RCV) {
+			if (tfa98xx->i2c->addr == CHIP_RCV_ADDR) {
+				tfa98xx->flags |= TFA98XX_FLAG_CHIP_SELECTED;
+				tfa98xx->profile = 1;
+			} else
+				tfa98xx->flags &= ~TFA98XX_FLAG_CHIP_SELECTED;
+		} else {
+			tfa98xx->flags |= TFA98XX_FLAG_CHIP_SELECTED;
+		}
+	}
+	mutex_unlock(&tfa98xx_mutex);
+
+	return 1;
+}
+
+static int tfa98xx_get_stereo_ctl(struct snd_kcontrol *kcontrol,
+				  struct snd_ctl_elem_value *ucontrol)
+{
+	struct tfa98xx *tfa98xx;
+
+	mutex_lock(&tfa98xx_mutex);
+	list_for_each_entry (tfa98xx, &tfa98xx_device_list, list) {
+		ucontrol->value.integer.value[0] = tfa98xx->flags;
+	}
+	mutex_unlock(&tfa98xx_mutex);
+
+	return 0;
+}
+
+#endif
+
 static int tfa98xx_create_controls(struct tfa98xx *tfa98xx)
 {
 	int prof, nprof, mix_index = 0;
@@ -1464,7 +1581,11 @@ static int tfa98xx_create_controls(struct tfa98xx *tfa98xx)
 	 *  - Stop control on TFA1 devices
 	 */
 
+#ifdef CONFIG_MACH_ASUS_SDM660
+	nr_controls = 4; /* Profile, stop control and stereo selector */
+#else
 	nr_controls = 2; /* Profile and stop control */
+#endif
 
 	if (tfa98xx->flags & TFA98XX_FLAG_CALIBRATION_CTL)
 		nr_controls += 1; /* calibration */
@@ -1592,6 +1713,15 @@ static int tfa98xx_create_controls(struct tfa98xx *tfa98xx)
 		tfa98xx_controls[mix_index].put = tfa98xx_set_cal_ctl;
 		mix_index++;
 	}
+
+#ifdef CONFIG_MACH_ASUS_SDM660
+	tfa98xx_controls[mix_index].name = "TFA_CHIP_SELECTOR";
+	tfa98xx_controls[mix_index].iface = SNDRV_CTL_ELEM_IFACE_MIXER;
+	tfa98xx_controls[mix_index].info = tfa98xx_info_stereo_ctl;
+	tfa98xx_controls[mix_index].get = tfa98xx_get_stereo_ctl;
+	tfa98xx_controls[mix_index].put = tfa98xx_set_stereo_ctl;
+	mix_index++;
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
 	return snd_soc_add_component_controls(tfa98xx->codec, tfa98xx_controls,
@@ -2276,7 +2406,8 @@ static void tfa98xx_tapdet_work(struct work_struct *work)
 	if (tfa_irq_get(tfa98xx->tfa, tfa9912_irq_sttapdet))
 		tfa98xx_tapdet(tfa98xx);
 
-	queue_delayed_work(system_power_efficient_wq, &tfa98xx->tapdet_work, HZ / 10);
+	queue_delayed_work(system_power_efficient_wq, &tfa98xx->tapdet_work,
+			   HZ / 10);
 }
 static void tfa98xx_nmode_update_work(struct work_struct *work)
 {
@@ -2287,8 +2418,8 @@ static void tfa98xx_nmode_update_work(struct work_struct *work)
 	mutex_lock(&tfa98xx->dsp_lock);
 	tfa_adapt_noisemode(tfa98xx->tfa);
 	mutex_unlock(&tfa98xx->dsp_lock);
-	queue_delayed_work(system_power_efficient_wq, &tfa98xx->nmodeupdate_work,
-			   5 * HZ);
+	queue_delayed_work(system_power_efficient_wq,
+			   &tfa98xx->nmodeupdate_work, 5 * HZ);
 }
 static void tfa98xx_monitor(struct work_struct *work)
 {
@@ -2312,7 +2443,8 @@ static void tfa98xx_monitor(struct work_struct *work)
 	}
 
 	/* reschedule */
-	queue_delayed_work(system_power_efficient_wq, &tfa98xx->monitor_work, 5 * HZ);
+	queue_delayed_work(system_power_efficient_wq, &tfa98xx->monitor_work,
+			   5 * HZ);
 }
 
 static void tfa98xx_dsp_init(struct tfa98xx *tfa98xx)
@@ -2373,8 +2505,8 @@ static void tfa98xx_dsp_init(struct tfa98xx *tfa98xx)
 	}
 	if (reschedule) {
 		/* reschedule this init work for later */
-		queue_delayed_work(system_power_efficient_wq, &tfa98xx->init_work,
-				   msecs_to_jiffies(5));
+		queue_delayed_work(system_power_efficient_wq,
+				   &tfa98xx->init_work, msecs_to_jiffies(5));
 		tfa98xx->init_count++;
 	}
 	if (failed) {
@@ -2481,8 +2613,10 @@ static int tfa98xx_startup(struct snd_pcm_substream *substream,
 	unsigned int sr;
 	int len, prof, nprof, idx = 0;
 	char *basename;
+#ifndef CONFIG_MACH_ASUS_SDM660
 	u64 formats;
 	int err;
+#endif
 
 	/*
 	 * Support CODEC to CODEC links,
@@ -2494,6 +2628,7 @@ static int tfa98xx_startup(struct snd_pcm_substream *substream,
 	if (pcm_no_constraint != 0)
 		return 0;
 
+#ifndef CONFIG_MACH_ASUS_SDM660
 	switch (pcm_sample_format) {
 	case 0:
 		formats = SNDRV_PCM_FMTBIT_S16_LE;
@@ -2513,6 +2648,7 @@ static int tfa98xx_startup(struct snd_pcm_substream *substream,
 					   SNDRV_PCM_HW_PARAM_FORMAT, formats);
 	if (err < 0)
 		return err;
+#endif
 
 	if (no_start != 0)
 		return 0;
@@ -2561,9 +2697,13 @@ static int tfa98xx_startup(struct snd_pcm_substream *substream,
 
 	kfree(basename);
 
+#ifdef CONFIG_MACH_ASUS_SDM660
+	return 0;
+#else
 	return snd_pcm_hw_constraint_list(substream->runtime, 0,
 					  SNDRV_PCM_HW_PARAM_RATE,
 					  &tfa98xx->rate_constraint);
+#endif
 }
 
 static int tfa98xx_set_dai_sysclk(struct snd_soc_dai *codec_dai, int clk_id,
@@ -2678,6 +2818,55 @@ static int tfa98xx_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+#ifdef CONFIG_MACH_ASUS_SDM660
+extern int send_tfa_cal_in_band(void *buf, int cmd_size);
+static uint8_t bytes[10] = { 0 };
+enum Tfa98xx_Error tfa98xx_adsp_send_calib_values(struct tfa98xx *tfa98xx)
+{
+	int ret = 0;
+	struct tfa_device *tfa = tfa98xx->tfa;
+	int value = 0, nr, dsp_cal_value = 0;
+
+	if (TFA_GET_BF(tfa, MTPEX) == 1 && tfa98xx->i2c->addr == 0x35) {
+		value = tfa_dev_mtp_get(tfa, TFA_MTP_RE25);
+		dsp_cal_value = (value * 65536) / 1000;
+
+		nr = 4;
+		/* We have to copy it for both channels. Even when mono! */
+		bytes[nr++] = (uint8_t)((dsp_cal_value >> 16) & 0xff);
+		bytes[nr++] = (uint8_t)((dsp_cal_value >> 8) & 0xff);
+		bytes[nr++] = (uint8_t)(dsp_cal_value & 0xff);
+
+		bytes[nr++] = bytes[4];
+		bytes[nr++] = bytes[5];
+		bytes[nr++] = bytes[6];
+
+		dev_err(&tfa98xx->i2c->dev, "%s: cal value 0x%x\n", __func__,
+			dsp_cal_value);
+
+		/* Speaker RDC */
+		if (value > 4000)
+			bytes[0] |= 0x11;
+	}
+
+	if (bytes[0] == 0x11) {
+		nr = 1;
+		bytes[nr++] = 0x00;
+		bytes[nr++] = 0x81;
+		bytes[nr++] = 0x05;
+
+		dev_err(&tfa98xx->i2c->dev, "%s: send_tfa_cal_in_band \n",
+			__func__);
+
+		ret = send_tfa_cal_in_band(&bytes[1], sizeof(bytes) - 1);
+
+		bytes[0] = 0;
+	}
+
+	return ret;
+}
+#endif
+
 static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
@@ -2722,19 +2911,29 @@ static int tfa98xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 		if (tfa98xx->flags & TFA98XX_FLAG_ADAPT_NOISE_MODE)
 			cancel_delayed_work_sync(&tfa98xx->nmodeupdate_work);
 	} else {
-		if (stream == SNDRV_PCM_STREAM_PLAYBACK)
+		if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			tfa98xx->pstream = 1;
-		else
-			tfa98xx->cstream = 1;
 
+#ifdef CONFIG_MACH_ASUS_SDM660
+			/* Start DSP */
+			if ((tfa98xx->flags & TFA98XX_FLAG_CHIP_SELECTED) &&
+			    (tfa98xx->dsp_init != TFA98XX_DSP_INIT_PENDING))
+				queue_delayed_work(system_power_efficient_wq,
+						   &tfa98xx->init_work, 0);
+
+			tfa98xx_adsp_send_calib_values(tfa98xx);
+#endif
+		} else {
+			tfa98xx->cstream = 1;
+		}
+
+#ifndef CONFIG_MACH_ASUS_SDM660
 		/* Start DSP */
-#if 1
 		if (tfa98xx->dsp_init != TFA98XX_DSP_INIT_PENDING)
 			queue_delayed_work(system_power_efficient_wq,
 					   &tfa98xx->init_work, 0);
-#else
-		tfa98xx_dsp_init(tfa98xx);
-#endif //
+#endif
+
 		if (tfa98xx->flags & TFA98XX_FLAG_ADAPT_NOISE_MODE)
 			queue_delayed_work(system_power_efficient_wq,
 					   &tfa98xx->nmodeupdate_work, 0);
@@ -2912,7 +3111,8 @@ static void tfa98xx_irq_tfa2(struct tfa98xx *tfa98xx)
 	 * will be unmasked after handling interrupts in workqueue
 	 */
 	tfa_irq_mask(tfa98xx->tfa);
-	queue_delayed_work(system_power_efficient_wq, &tfa98xx->interrupt_work, 0);
+	queue_delayed_work(system_power_efficient_wq, &tfa98xx->interrupt_work,
+			   0);
 }
 
 static irqreturn_t tfa98xx_irq(int irq, void *data)
@@ -3231,6 +3431,10 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 			return -EINVAL;
 		}
 	}
+
+#ifdef CONFIG_MACH_ASUS_SDM660
+	tfa98xx->flags |= TFA98XX_FLAG_CHIP_SELECTED;
+#endif
 
 	tfa98xx->tfa =
 		devm_kzalloc(&i2c->dev, sizeof(struct tfa_device), GFP_KERNEL);
