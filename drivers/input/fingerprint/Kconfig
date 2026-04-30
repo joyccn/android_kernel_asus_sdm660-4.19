@@ -14,31 +14,22 @@ menuconfig INPUT_FINGERPRINT
 
 if INPUT_FINGERPRINT
 
-config CDFINGER_FP
-	bool "Fingerprint cdfinger"
-	help
-	  Say Y here if you use common fp.
-	  If unsure, say N.
-
-if MACH_ASUS_X01BD
+source "drivers/input/fingerprint/cdfingerfp/Kconfig"
 
 config FOCALTECH_FP
 	bool "Fingerprint focaltech"
+	depends on MACH_ASUS_X01BD
 	help
 	  Say Y here if you use focaltech fp.
 	  If unsure, say N.
 
-endif
-
-if MACH_ASUS_X00TD
-
 config GOODIX_FP_X00TD
-    bool "Fingerprint goodix"
+	bool "Fingerprint goodix"
+	depends on MACH_ASUS_X00TD
 	help
-		Say Y here if you use common fp.
-		If unsure, say N.
+	  Say Y here if you use common fp.
+	  If unsure, say N.
 
 endif
 
-endif
 endif

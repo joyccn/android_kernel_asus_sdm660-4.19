@@ -1,4 +1,4 @@
 #
 # Makefile for the fingerprint drivers.
 #
-obj-y += cdfingerfp.o
+obj-$(CONFIG_CDFINGER_FINGERPRINT) += cdfingerfp.o
