@@ -19,6 +19,7 @@
 #include <linux/notifier.h>
 #include <linux/fb.h>
 #include <linux/init.h>
+
 #include "nt36xxx.h"
 
 struct nvt_ts_data *ts;
@@ -37,6 +38,8 @@ static struct wakeup_source *gesture_wakelock;
 #define NVT_GESTURE_MODE "tpd_gesture"
 
 static long gesture_mode = 0;
+static bool has_dt2w_cmdline __read_mostly = false;
+
 static int __init read_gesture_cmd(char *s)
 {
 	unsigned int val = 0;
@@ -54,6 +57,7 @@ static int __init read_gesture_cmd(char *s)
 	if (val == 1) {
 		pr_info("NVT-ts: DT2W is enabled by cmdline\n");
 		gesture_mode = 0x1FF;
+		WRITE_ONCE(has_dt2w_cmdline, true);
 	}
 
 skip:
@@ -75,6 +79,11 @@ static ssize_t nvt_gesture_mode_set_proc(struct file *filp,
 {
 	char msg[20] = { 0 };
 	int ret = 0;
+
+	if (unlikely(READ_ONCE(has_dt2w_cmdline))) {
+		pr_err("cmdline overrides userspace!, disallow!\n");
+		return -EACCES;
+	}
 
 	if (!bTouchIsAwake) {
 		pr_debug("Touch is already sleep, cant modify gesture node\n");
