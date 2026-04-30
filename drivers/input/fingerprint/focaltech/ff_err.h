@@ -15,37 +15,38 @@
 //
 
 #define FF_CHECK_ERR(expr)                                             \
-    do {                                                               \
-        int __e = (expr);                                              \
-        if (__e) {                                                     \
-            FF_LOGE("'%s'.", ff_err_strerror(__e));                    \
+	do {                                                               \
+		int __e = (expr);                                              \
+		if (__e) {                                                     \
+			FF_LOGE("'%s'.", ff_err_strerror(__e));                    \
             return (__e);                                              \
-        }                                                              \
-    } while (0)
+		}                                                              \
+	} while (0)
 /* End of FF_CHECK_ERR */
 
 #define FF_CHECK_PTR(ptr)                                              \
-    do {                                                               \
-        if ((ptr) == NULL) {                                           \
-            FF_CHECK_ERR(FF_ERR_NULL_PTR);                             \
-        }                                                              \
-    } while (0)
+	do {                                                               \
+		if ((ptr) == NULL) {                                           \
+			FF_CHECK_ERR(FF_ERR_NULL_PTR);                             \
+		}                                                              \
+	} while (0)
 /* End of FF_CHECK_PTR */
 
 #define FF_FAILURE_RETRY(expr, retry)                                  \
-    do {                                                               \
-        int __e, i = 0, j = retry;                                     \
-        do {                                                           \
-            __e = (expr);                                              \
-            if (!__e) break;                                           \
-            if (++i <= j) {                                            \
-                FF_LOGW("'"#expr"' failed, try again (%d/%d).", i, j); \
-            } else {                                                   \
-                FF_LOGE("'%s'.", ff_err_strerror(__e));                \
+	do {                                                               \
+		int __e, i = 0, j = retry;                                     \
+		do {                                                           \
+			__e = (expr);                                              \
+			if (!__e) 												   \
+				break;												   \
+			if (++i <= j) {                                            \
+				FF_LOGW("'"#expr"' failed, try again (%d/%d).", i, j); \
+			} else {                                                   \
+				FF_LOGE("'%s'.", ff_err_strerror(__e));                \
                 return (__e);                                          \
-            }                                                          \
-        } while (true);                                                \
-    } while (0)
+			}                                                          \
+		} while (true);                                                \
+	} while (0)
 /* End of FF_FAILURE_RETRY */
 
 typedef enum {
