@@ -68,7 +68,7 @@ err_irq:
 	devm_gpio_free(dev, gf_dev->reset_gpio);
 err_reset:
 	devm_gpio_free(dev, gf_dev->vdd_gpio);
-err_pwr:
+err_vdd:
 	return rc;
 }
 
