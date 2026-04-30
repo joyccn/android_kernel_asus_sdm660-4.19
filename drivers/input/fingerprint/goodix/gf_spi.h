@@ -131,17 +131,17 @@ struct gf_dev {
 	signed reset_gpio;
 	signed vdd_gpio;
 	int irq;
-	bool irq_enabled;
-	bool clk_enabled;
+	int irq_enabled;
+	int clk_enabled;
 #ifdef GF_FASYNC
 	struct fasync_struct *async;
 #endif
 	struct notifier_block notifier;
-	bool device_available;
-	bool fb_black;
+	char device_available;
+	char fb_black;
 };
 
-int gf_parse_dts(struct gf_dev* gf_dev);
+int gf_parse_dts(struct gf_dev *gf_dev);
 void gf_cleanup(struct gf_dev *gf_dev);
 
 int gf_power_on(struct gf_dev *gf_dev);
@@ -150,7 +150,7 @@ int gf_power_off(struct gf_dev *gf_dev);
 int gf_hw_reset(struct gf_dev *gf_dev, unsigned int delay_ms);
 int gf_irq_num(struct gf_dev *gf_dev);
 
-void sendnlmsg(char *message);
+int sendnlmsg(char *msg);
 int netlink_init(void);
 void netlink_exit(void);
 #endif /*__GF_SPI_H*/

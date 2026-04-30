@@ -18,12 +18,7 @@ source "drivers/input/fingerprint/cdfingerfp/Kconfig"
 
 source "drivers/input/fingerprint/focaltech/Kconfig"
 
-config GOODIX_FP_X00TD
-	bool "Fingerprint goodix"
-	depends on MACH_ASUS_X00TD
-	help
-	  Say Y here if you use common fp.
-	  If unsure, say N.
+source "drivers/input/fingerprint/goodix/Kconfig"
 
 endif
 
