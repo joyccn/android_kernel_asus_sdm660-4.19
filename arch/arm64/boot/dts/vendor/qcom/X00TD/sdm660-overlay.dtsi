@@ -13,16 +13,14 @@
 / {
 	reserved-memory {
 		ramoops {
+			/delete-property/ console-size;
 			compatible = "removed-dma-pool", "ramoops";
 			no-map;
 			reg = <0x0 0xb0000000 0x0 0x400000>;
-			console-size = <0x200000>;
+			record-size = <0x200000>;
 			pmsg-size = <0x200000>;
+			max-reason = <4>;
 			status = "ok";
-		};
-
-		cont_splash_mem: splash_region@9d400000 {
-			reg = <0x0 0x9d400000 0x0 0x02400000>;
 		};
 	};
 };
