@@ -1,10 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * kernel/power/suspend.c - Suspend to RAM and standby functionality.
  *
  * Copyright (c) 2003 Patrick Mochel
  * Copyright (c) 2003 Open Source Development Lab
  * Copyright (c) 2009 Rafael J. Wysocki <rjw@sisk.pl>, Novell Inc.
+ *
+ * This file is released under the GPLv2.
  */
 
 #define pr_fmt(fmt) "PM: " fmt
@@ -15,7 +16,6 @@
 #include <linux/init.h>
 #include <linux/console.h>
 #include <linux/cpu.h>
-#include <linux/cpuidle.h>
 #include <linux/syscalls.h>
 #include <linux/gfp.h>
 #include <linux/io.h>
@@ -51,7 +51,7 @@ static const char * const mem_sleep_labels[] = {
 };
 const char *mem_sleep_states[PM_SUSPEND_MAX];
 
-suspend_state_t mem_sleep_current = PM_SUSPEND_TO_IDLE;
+suspend_state_t mem_sleep_current = PM_SUSPEND_MEM;
 suspend_state_t mem_sleep_default = PM_SUSPEND_MAX;
 suspend_state_t pm_suspend_target_state;
 EXPORT_SYMBOL_GPL(pm_suspend_target_state);
@@ -97,7 +97,6 @@ static void s2idle_enter(void)
 	raw_spin_unlock_irq(&s2idle_lock);
 
 	get_online_cpus();
-	cpuidle_resume();
 
 	/* Push all the CPUs into the idle loop. */
 	wake_up_all_idle_cpus();
@@ -105,7 +104,6 @@ static void s2idle_enter(void)
 	swait_event_exclusive(s2idle_wait_head,
 		    s2idle_state == S2IDLE_STATE_WAKE);
 
-	cpuidle_pause();
 	put_online_cpus();
 
 	raw_spin_lock_irq(&s2idle_lock);
@@ -123,6 +121,7 @@ static void s2idle_loop(void)
 
 	for (;;) {
 		int error;
+		bool leave_s2idle = false;
 
 		dpm_noirq_begin();
 
@@ -136,10 +135,27 @@ static void s2idle_loop(void)
 		 * so prevent them from terminating the loop right away.
 		 */
 		error = dpm_noirq_suspend_devices(PMSG_SUSPEND);
-		if (!error)
+		if (!error) {
 			s2idle_enter();
-		else if (error == -EBUSY && pm_wakeup_pending())
+			/*
+			 * Once we enter s2idle_enter(), returning means that
+			 * either:
+			 * 1) an abort was detected prior to suspending, or
+			 * 2) something caused us to wake from suspended
+			 * If we got an abort or a wakeup interrupt, we need
+			 * to break out of this loop.  If we were woken by
+			 * an interrupt that technically doesn't require a
+			 * full wakeup (only a few corner cases), we're going
+			 * to wake up anyway, because the way this new
+			 * s2idle_loop() flow works, the resume of devices
+			 * below will cause an abort even if we could
+			 * otherwise have looped back into suspend.
+			 */
+			leave_s2idle = true;
+		} else if (error == -EBUSY && pm_wakeup_pending()) {
+			leave_s2idle = true;
 			error = 0;
+		}
 
 		if (!error && s2idle_ops && s2idle_ops->wake)
 			s2idle_ops->wake();
@@ -154,9 +170,15 @@ static void s2idle_loop(void)
 		if (s2idle_ops && s2idle_ops->sync)
 			s2idle_ops->sync();
 
-		if (pm_wakeup_pending())
+		if (leave_s2idle || pm_wakeup_pending())
 			break;
 
+		/*
+		 * Since we are going to loop around and attempt to go back
+		 * into suspend, ensure that all wakeup reason logging from
+		 * this partial resume gets cleared first (which will also
+		 * reenable wakeup reason logging).
+		 */
 		pm_wakeup_clear(false);
 		clear_wakeup_reasons();
 	}
@@ -207,7 +229,6 @@ static int __init mem_sleep_default_setup(char *str)
 		if (mem_sleep_labels[state] &&
 		    !strcmp(str, mem_sleep_labels[state])) {
 			mem_sleep_default = state;
-			mem_sleep_current = state;
 			break;
 		}
 
@@ -445,6 +466,7 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 
 	error = disable_nonboot_cpus();
 	if (error || suspend_test(TEST_CPUS)) {
+		log_suspend_abort_reason("Disabling non-boot cpus failed");
 		goto Enable_cpus;
 	}
 
@@ -513,7 +535,7 @@ int suspend_devices_and_enter(suspend_state_t state)
 	suspend_test_start();
 	error = dpm_suspend_start(PMSG_SUSPEND);
 	if (error) {
-		pr_debug("Some devices failed to suspend, or early wake event detected\n");
+		pr_err("Some devices failed to suspend, or early wake event detected\n");
 		log_suspend_abort_reason(
 				"Some devices failed to suspend, or early wake event detected");
 		goto Recover_platform;
@@ -583,13 +605,14 @@ static int enter_state(suspend_state_t state)
 	if (!mutex_trylock(&system_transition_mutex))
 		return -EBUSY;
 
-	pm_wakeup_clear(true);
 	if (state == PM_SUSPEND_TO_IDLE)
 		s2idle_begin();
 
 #ifndef CONFIG_SUSPEND_SKIP_SYNC
 	trace_suspend_resume(TPS("sync_filesystems"), 0, true);
+	pr_info("Syncing filesystems ... ");
 	ksys_sync();
+	pr_cont("done.\n");
 	trace_suspend_resume(TPS("sync_filesystems"), 0, false);
 #endif
 
@@ -603,12 +626,14 @@ static int enter_state(suspend_state_t state)
 		goto Finish;
 
 	trace_suspend_resume(TPS("suspend_enter"), state, false);
+	pm_pr_dbg("Suspending system (%s)\n", mem_sleep_labels[state]);
 	pm_restrict_gfp_mask();
 	error = suspend_devices_and_enter(state);
 	pm_restore_gfp_mask();
 
  Finish:
 	events_check_enabled = false;
+	pm_pr_dbg("Finishing wakeup.\n");
 	suspend_finish();
  Unlock:
 	mutex_unlock(&system_transition_mutex);
@@ -636,6 +661,7 @@ int pm_suspend(suspend_state_t state)
 	} else {
 		suspend_stats.success++;
 	}
+	pr_info("suspend exit\n");
 	return error;
 }
 EXPORT_SYMBOL(pm_suspend);

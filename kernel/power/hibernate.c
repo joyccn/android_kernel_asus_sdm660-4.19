@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * kernel/power/hibernate.c - Hibernation (a.k.a suspend-to-disk) support.
  *
@@ -7,6 +6,8 @@
  * Copyright (c) 2004 Pavel Machek <pavel@ucw.cz>
  * Copyright (c) 2009 Rafael J. Wysocki, Novell Inc.
  * Copyright (C) 2012 Bojan Smojver <bojan@rexursive.com>
+ *
+ * This file is released under the GPLv2.
  */
 
 #define pr_fmt(fmt) "PM: " fmt
@@ -411,6 +412,7 @@ int hibernation_snapshot(int platform_mode)
 
 	resume_console();
 	dpm_complete(msg);
+
  Close:
 	platform_end(platform_mode);
 	return error;
@@ -577,11 +579,7 @@ int hibernation_platform_enter(void)
 
 	local_irq_disable();
 	system_state = SYSTEM_SUSPEND;
-
-	error = syscore_suspend();
-	if (error)
-		goto Enable_irqs;
-
+	syscore_suspend();
 	if (pm_wakeup_pending()) {
 		error = -EAGAIN;
 		goto Power_up;
@@ -593,7 +591,6 @@ int hibernation_platform_enter(void)
 
  Power_up:
 	syscore_resume();
- Enable_irqs:
 	system_state = SYSTEM_RUNNING;
 	local_irq_enable();
 
@@ -629,7 +626,7 @@ static void power_down(void)
 	int error;
 
 	if (hibernation_mode == HIBERNATION_SUSPEND) {
-		error = suspend_devices_and_enter(mem_sleep_current);
+		error = suspend_devices_and_enter(PM_SUSPEND_MEM);
 		if (error) {
 			hibernation_mode = hibernation_ops ?
 						HIBERNATION_PLATFORM :
@@ -713,6 +710,7 @@ int hibernate(void)
 		goto Unlock;
 	}
 
+	pr_info("hibernation entry\n");
 	pm_prepare_console();
 	error = __pm_notifier_call_chain(PM_HIBERNATION_PREPARE, -1, &nr_calls);
 	if (error) {
@@ -720,7 +718,9 @@ int hibernate(void)
 		goto Exit;
 	}
 
+	pr_info("Syncing filesystems ... \n");
 	ksys_sync();
+	pr_info("done.\n");
 
 	error = freeze_processes();
 	if (error)
@@ -781,6 +781,7 @@ int hibernate(void)
 	atomic_inc(&snapshot_device_available);
  Unlock:
 	unlock_system_sleep();
+	pr_info("hibernation exit\n");
 
 	return error;
 }
@@ -1218,7 +1219,7 @@ static int __init resumedelay_setup(char *str)
 	int rc = kstrtouint(str, 0, &resume_delay);
 
 	if (rc)
-		pr_warn("resumedelay: bad option string '%s'\n", str);
+		return rc;
 	return 1;
 }
 
