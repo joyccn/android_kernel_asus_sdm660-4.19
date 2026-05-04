@@ -488,6 +488,7 @@ static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
 	static atomic_t init_done = ATOMIC_INIT(0);
 	struct task_struct *thread;
 	struct sysinfo i;
+	static __kernel_ulong_t total_system_ram = 0;
 
 	if (!atomic_cmpxchg(&init_done, 0, 1)) {
 		thread = kthread_run(simple_lmk_reaper_thread, NULL,
@@ -500,15 +501,20 @@ static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
 	}
 
 	si_meminfo(&i);
-	if (i.totalram << (PAGE_SHIFT-10) > 3072ull * 1024) {
-	  // 4GB+ variant
-	  slmk_minfree = 128;
-	  slmk_timeout = 200;
+	total_system_ram = i.totalram << (PAGE_SHIFT - 10);
+ 
+	if (total_system_ram > 3072ull * 1024) {
+		// 4GB+ variant
+		slmk_minfree = 128;
+		slmk_timeout = 200;
 	} else {
-	  // 3GB or lower
-	  slmk_minfree = 256;
-	  slmk_timeout = 200;
+		// 3GB or lower
+		slmk_minfree = 256;
+		slmk_timeout = 200;
 	}
+
+	pr_info_once("detected %lu KiB of RAM, setting minfree to %d with %d timeout\n",
+		total_system_ram, slmk_minfree, slmk_timeout);
 
 	return 0;
 }
