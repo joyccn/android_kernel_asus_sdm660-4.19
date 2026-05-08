@@ -374,10 +374,10 @@ else
 HOSTCC	= gcc
 HOSTCXX	= g++
 endif
-KBUILD_HOSTCFLAGS   := -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 \
+KBUILD_HOSTCFLAGS   := -Wall -Wmissing-prototypes -Wstrict-prototypes -O3 \
 		-fomit-frame-pointer -std=gnu89 -pipe $(HOST_LFS_CFLAGS) \
 		$(HOSTCFLAGS)
-KBUILD_HOSTCXXFLAGS := -O2 $(HOST_LFS_CFLAGS) $(HOSTCXXFLAGS)
+KBUILD_HOSTCXXFLAGS := -O3 $(HOST_LFS_CFLAGS) $(HOSTCXXFLAGS)
 KBUILD_HOSTLDFLAGS  := $(HOST_LFS_LDFLAGS) $(HOSTLDFLAGS)
 KBUILD_HOSTLDLIBS   := $(HOST_LFS_LIBS) $(HOSTLDLIBS)
 
@@ -720,7 +720,7 @@ KBUILD_CFLAGS	+= $(call cc-disable-warning, address-of-packed-member)
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os
 else
-OPT_FLAGS	:= -O2 -march=armv8-a+crc+crypto
+OPT_FLAGS	:= -O3 -march=armv8-a+crc+crypto
 ifdef CONFIG_CC_IS_CLANG
 OPT_FLAGS	+= -mtune=cortex-a53
 else ifdef CONFIG_CC_IS_GCC
@@ -847,11 +847,11 @@ endif
 KBUILD_CFLAGS += $(call cc-disable-warning, unused-but-set-variable)
 
 ifdef CONFIG_LTO_CLANG
-KBUILD_LDFLAGS += -O2 --lto-O2
-LDFLAGS += -O2 --lto-O2
+KBUILD_LDFLAGS += -O3 --lto-O3
+LDFLAGS += -O3 --lto-O3
 else
-KBUILD_LDFLAGS += -O2
-LDFLAGS += -O2
+KBUILD_LDFLAGS += -O3
+LDFLAGS += -O3
 endif
 
 KBUILD_CFLAGS += $(call cc-disable-warning, unused-const-variable)
