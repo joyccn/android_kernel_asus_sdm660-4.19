@@ -6,9 +6,7 @@
  * Author: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
  */
 
-#include <linux/cpufreq.h>
-#include <linux/kthread.h>
-#include <uapi/linux/sched/types.h>
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include "sched.h"
 
@@ -64,8 +62,6 @@ struct sugov_cpu {
 	u64			last_update;
 
 	unsigned long		util;
-	u16			*dvfs_headroom_lut;
-
 	unsigned long		bw_min;
 };
 
@@ -270,8 +266,7 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 				  unsigned long util, unsigned long max)
 {
 	struct cpufreq_policy *policy = sg_policy->policy;
-	unsigned int freq;
-	unsigned int idx, l_freq, h_freq;
+	unsigned int freq, idx, l_freq, h_freq;
 
 	if (arch_scale_freq_invariant())
 		freq = policy->cpuinfo.max_freq;
@@ -790,13 +785,13 @@ static struct attribute *sugov_attrs[] = {
 
 static void sugov_tunables_free(struct kobject *kobj)
 {
-	struct gov_attr_set *attr_set = container_of(kobj, struct gov_attr_set, kobj);
+	struct gov_attr_set *attr_set = to_gov_attr_set(kobj);
 
 	kfree(to_sugov_tunables(attr_set));
 }
 
 static struct kobj_type sugov_tunables_ktype = {
-	.default_attrs = sugov_attributes,
+	.default_attrs = sugov_attrs,
 	.sysfs_ops = &governor_sysfs_ops,
 	.release = &sugov_tunables_free,
 };
@@ -804,25 +799,6 @@ static struct kobj_type sugov_tunables_ktype = {
 /********************** cpufreq governor interface *********************/
 
 static struct cpufreq_governor schedutil_gov;
-
-static void sugov_build_dvfs_headroom_lut(struct sugov_policy *sg_policy)
-{
-	struct cpufreq_policy *policy = sg_policy->policy;
-	unsigned long capacity = capacity_orig_of(policy->cpu);
-	unsigned long threshold;
-	unsigned long util;
-
-	if (sg_policy->dvfs_capacity == capacity)
-		return;
-
-	sg_policy->dvfs_capacity = capacity;
-
-	threshold = (capacity * 15) / 100;
-
-	for (util = 0; util <= SCHED_CAPACITY_SCALE; util++)
-		sg_policy->dvfs_headroom_lut[util] =
-			sugov_apply_dvfs_headroom(util, capacity, threshold);
-}
 
 static struct sugov_policy *sugov_policy_alloc(struct cpufreq_policy *policy)
 {
@@ -941,8 +917,6 @@ static int sugov_init(struct cpufreq_policy *policy)
 		goto disable_fast_switch;
 	}
 
-	sugov_build_dvfs_headroom_lut(sg_policy);
-
 	ret = sugov_kthread_create(sg_policy);
 	if (ret)
 		goto free_sg_policy;
@@ -1040,15 +1014,6 @@ static int sugov_start(struct cpufreq_policy *policy)
 
 	sg_policy->need_freq_update = cpufreq_driver_test_flags(CPUFREQ_NEED_UPDATE_LIMITS);
 
-	for_each_cpu(cpu, policy->cpus) {
-		struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
-
-		memset(sg_cpu, 0, sizeof(*sg_cpu));
-		sg_cpu->cpu			= cpu;
-		sg_cpu->sg_policy		= sg_policy;
-		sg_cpu->dvfs_headroom_lut   = sg_policy->dvfs_headroom_lut;
-	}
-
 	if (policy_is_shared(policy))
 		uu = sugov_update_shared;
 	else if (policy->fast_switch_enabled && cpufreq_driver_has_adjust_perf())
@@ -1090,8 +1055,6 @@ static void sugov_limits(struct cpufreq_policy *policy)
 	struct sugov_policy *sg_policy = policy->governor_data;
 	unsigned long flags, now;
 	unsigned int freq;
-
-	sugov_build_dvfs_headroom_lut(sg_policy);
 
 	if (!policy->fast_switch_enabled) {
 		mutex_lock(&sg_policy->work_lock);
