@@ -34,7 +34,6 @@ struct kcompressd_para {
 	wait_queue_head_t *kcompressd_wait;
 	struct kfifo *write_fifo;
 	atomic_t *running;
-	bool fifo_freed;
 };
 
 static struct kcompressd_para *kcompressd_para;
@@ -105,15 +104,11 @@ static void clean_bio_queue(int idx)
 {
 	struct write_work entry;
 
-	if (kcompressd_para[idx].fifo_freed)
-		return;
-
 	while (sizeof(struct write_work) == kfifo_out(&kcompress[idx].write_fifo,
 				&entry, sizeof(struct write_work))) {
 		entry.cb(entry.mem, entry.bio);
 	}
 	kfifo_free(&kcompress[idx].write_fifo);
-	kcompressd_para[idx].fifo_freed = true;
 }
 
 static int kcompress_update(void)
@@ -126,19 +121,12 @@ static int kcompress_update(void)
 		return -ENOMEM;
 
 	kcompressd_para = kvmalloc_array(nr_kcompressd, sizeof(struct kcompressd_para), GFP_KERNEL);
-	if (!kcompressd_para) {
-		kvfree(kcompress);
-		kcompress = NULL;
+	if (!kcompressd_para)
 		return -ENOMEM;
-	}
 
 	ret = init_write_queue();
 	if (ret) {
 		pr_err("Initialization of writing to FIFOs failed!!\n");
-		kvfree(kcompressd_para);
-		kcompressd_para = NULL;
-		kvfree(kcompress);
-		kcompress = NULL;
 		return ret;
 	}
 
@@ -147,7 +135,6 @@ static int kcompress_update(void)
 		kcompressd_para[i].kcompressd_wait = &kcompress[i].kcompressd_wait;
 		kcompressd_para[i].write_fifo = &kcompress[i].write_fifo;
 		kcompressd_para[i].running = &kcompress[i].running;
-		kcompressd_para[i].fifo_freed = false;
 	}
 
 	return 0;
@@ -157,14 +144,9 @@ static void stop_all_kcompressd_thread(void)
 {
 	int i;
 
-	if (!kcompress)
-		return;
-
 	for (i = 0; i < nr_kcompressd; i++) {
-		if (!IS_ERR_OR_NULL(kcompress[i].kcompressd)) {
-			kthread_stop(kcompress[i].kcompressd);
-			kcompress[i].kcompressd = NULL;
-		}
+		kthread_stop(kcompress[i].kcompressd);
+		kcompress[i].kcompressd = NULL;
 		clean_bio_queue(i);
 	}
 }
@@ -172,42 +154,25 @@ static void stop_all_kcompressd_thread(void)
 static int do_nr_kcompressd_handler(const char *val,
 		const struct kernel_param *kp)
 {
-	struct kernel_param tmp_kp = *kp;
-	unsigned int new_nr;
 	int ret;
 
-	tmp_kp.arg = &new_nr;
+	atomic_set(&enable_kcompressd, false);
 
-	ret = param_set_int(val, &tmp_kp);
+	stop_all_kcompressd_thread();
+
+	ret = param_set_int(val, kp);
 	if (ret < 0) {
 		pr_err("Invalid number of kcompressd.\n");
 		return ret;
 	}
 
-	if (new_nr == 0)
-		return -EINVAL;
-
-	if (new_nr == nr_kcompressd)
-		return 0;
-
-	atomic_set(&enable_kcompressd, false);
-	stop_all_kcompressd_thread();
-
-	kvfree(kcompress);
-	kvfree(kcompressd_para);
-	kcompress = NULL;
-	kcompressd_para = NULL;
-
-	nr_kcompressd = new_nr;
-
-	ret = kcompress_update();
+	ret = init_write_queue();
 	if (ret) {
-		pr_err("Initialization of writing to FIFOs failed for nr=%u\n", new_nr);
+		pr_err("Initialization of writing to FIFOs failed!!\n");
 		return ret;
 	}
 
 	atomic_set(&enable_kcompressd, true);
-	pr_info("Number of threads for kcompressd was changed: %u\n", new_nr);
 
 	return 0;
 }
@@ -225,43 +190,27 @@ MODULE_PARM_DESC(nr_kcompressd, "Number of pre-created daemon for page compressi
 static int do_queue_size_per_kcompressd_handler(const char *val,
 		const struct kernel_param *kp)
 {
-	struct kernel_param tmp_kp = *kp;
-	unsigned int new_sz;
 	int ret;
 
-	tmp_kp.arg = &new_sz;
+	atomic_set(&enable_kcompressd, false);
 
-	ret = param_set_int(val, &tmp_kp);
+	stop_all_kcompressd_thread();
+
+	ret = param_set_int(val, kp);
 	if (ret < 0) {
 		pr_err("Invalid queue size for kcompressd.\n");
 		return ret;
 	}
 
-	if (new_sz == 0)
-		return -EINVAL;
-
-	if (new_sz == queue_size_per_kcompressd)
-		return 0;
-
-	atomic_set(&enable_kcompressd, false);
-	stop_all_kcompressd_thread();
-
-	kvfree(kcompress);
-	kvfree(kcompressd_para);
-	kcompress = NULL;
-	kcompressd_para = NULL;
-
-	queue_size_per_kcompressd = new_sz;
-
-	ret = kcompress_update();
+	ret = init_write_queue();
 	if (ret) {
-		pr_err("Initialization of writing to FIFOs failed for sz=%u\n", new_sz);
+		pr_err("Initialization of writing to FIFOs failed!!\n");
 		return ret;
 	}
 
-	atomic_set(&enable_kcompressd, true);
-	pr_info("Queue size for kcompressd was changed: %u\n", new_sz);
+	pr_info("Queue size for kcompressd was changed: %d\n", queue_size_per_kcompressd);
 
+	atomic_set(&enable_kcompressd, true);
 	return 0;
 }
 
@@ -315,8 +264,6 @@ int schedule_bio_write(void *mem, struct bio *bio, compress_callback cb)
 					atomic_set(&kcompress[idx].running, KCOMPRESSD_NOT_STARTED);
 					pr_warn("Failed to start kcompressd:%d\n", idx);
 					clean_bio_queue(idx);
-					kcompressd_para[idx].fifo_freed = true;
-					kcompress[idx].kcompressd = NULL;
 				}
 			} else {
 				wake_up_interruptible(&kcompress[idx].kcompressd_wait);
