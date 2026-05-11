@@ -2018,18 +2018,6 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 	struct rq_flags rf;
 	struct rq *rq;
 	int ret = 0;
-
-        /* Don't allow perf-critical threads to have non-perf affinities */
-        if ((p->flags & PF_PERF_CRITICAL) && new_mask != cpu_perf_mask)
-                return -EINVAL;
-
-	/* Don't allow perf-critical threads to have non-perf affinities */
-	if ((p->pc_flags & PC_PERF_AFFINE) && new_mask != cpu_perf_mask)
-		return -EINVAL;
-
-	if ((p->pc_flags & PC_LITTLE_AFFINE) && new_mask != cpu_lp_mask)
-		return -EINVAL;
-
 	rq = task_rq_lock(p, &rf);
 	update_rq_clock(rq);
 

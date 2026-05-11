@@ -1290,12 +1290,10 @@ static void affine_one_perf_thread(struct irqaction *action)
 	if (!action->thread)
 		return;
 
-	if (action->flags & IRQF_PERF_AFFINE){
+	if (action->flags & IRQF_PERF_AFFINE)
 		mask = cpu_perf_mask;
 
-		action->thread->pc_flags |= PC_PERF_AFFINE;
-	}
-
+	action->thread->flags |= PF_PERF_CRITICAL;
 	set_cpus_allowed_ptr(action->thread, mask);
 }
 
@@ -1304,7 +1302,7 @@ static void unaffine_one_perf_thread(struct irqaction *action)
 	if (!action->thread)
 		return;
 
-	action->thread->pc_flags &= ~PC_PERF_AFFINE;
+	action->thread->flags &= ~PF_PERF_CRITICAL;
 	set_cpus_allowed_ptr(action->thread, cpu_all_mask);
 }
 
@@ -1676,7 +1674,7 @@ __setup_irq(unsigned int irq, struct irq_desc *desc, struct irqaction *new)
 			irqd_set(&desc->irq_data, IRQD_NO_BALANCING);
 		}
 
-		if (new->flags & (IRQF_PERF_AFFINE)) {
+		if (new->flags & IRQF_PERF_AFFINE) {
 			affine_one_perf_thread(new);
 			irqd_set(&desc->irq_data, IRQD_PERF_CRITICAL);
 			*old_ptr = new;
