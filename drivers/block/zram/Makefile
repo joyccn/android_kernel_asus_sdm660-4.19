@@ -10,4 +10,3 @@ zram-$(CONFIG_ZRAM_BACKEND_DEFLATE)	+= backend_deflate.o
 zram-$(CONFIG_ZRAM_BACKEND_842)		+= backend_842.o
 
 obj-$(CONFIG_ZRAM)	+=	zram.o
-obj-$(CONFIG_KCOMPRESSD) += kcompressd.o
