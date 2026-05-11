@@ -256,7 +256,8 @@ int schedule_bio_write(void *mem, struct bio *bio, compress_callback cb)
 			(sz_work == kfifo_in(&kcompress[idx].write_fifo, &entry, sz_work));
 
 		if (submit_success) {
-			if (atomic_read(&kcompress[idx].running) == KCOMPRESSD_NOT_STARTED) {
+			switch (atomic_read(&kcompress[idx].running)) {
+			case KCOMPRESSD_NOT_STARTED:
 				atomic_set(&kcompress[idx].running, KCOMPRESSD_RUNNING);
 				kcompress[idx].kcompressd = kthread_run(kcompressd,
 						&kcompressd_para[idx], "kcompressd:%d", idx);
@@ -265,8 +266,12 @@ int schedule_bio_write(void *mem, struct bio *bio, compress_callback cb)
 					pr_warn("Failed to start kcompressd:%d\n", idx);
 					clean_bio_queue(idx);
 				}
-			} else {
+				break;
+			case KCOMPRESSD_RUNNING:
+				break;
+			case KCOMPRESSD_SLEEPING:
 				wake_up_interruptible(&kcompress[idx].kcompressd_wait);
+				break;
 			}
 			return 0;
 		}
