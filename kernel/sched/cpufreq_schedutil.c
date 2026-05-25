@@ -81,17 +81,20 @@ static inline u64 sugov_calc_freq_response_ms(struct sugov_policy *sg_policy)
 
 	max_freq = sg_policy->policy->cpuinfo.max_freq;
 	sec_max_freq = __resolve_freq(sg_policy->policy,
-				      max_freq - 1,
-				      CPUFREQ_RELATION_H);
+					max_freq - 1,
+					CPUFREQ_RELATION_H);
 
 	/*
 	 * We will request max_freq as soon as util crosses the capacity at
 	 * second highest frequency. So effectively our response time is the
 	 * util at which we cross the cap@2nd_highest_freq.
 	 */
-	cap = sec_max_freq * cap / max_freq;
+	cap = (sec_max_freq * cap / max_freq) + 1;
 
-	return approximate_runtime(cap + 1);
+	if (cap >= SCHED_CAPACITY_SCALE)
+		cap = SCHED_CAPACITY_SCALE - 1;
+
+	return approximate_runtime(cap);
 }
 
 static inline void sugov_update_response_time_mult(struct sugov_policy *sg_policy)
