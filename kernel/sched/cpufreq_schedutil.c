@@ -91,8 +91,11 @@ static inline u64 sugov_calc_freq_response_ms(struct sugov_policy *sg_policy)
 	 */
 	cap = (sec_max_freq * cap / max_freq) + 1;
 
-	if (cap >= SCHED_CAPACITY_SCALE)
-		cap = SCHED_CAPACITY_SCALE - 1;
+	/*
+	 * Cap the capacity just below maximum scale to prevent the runtime
+	 * estimation from overflowing into an inaccurate, infinite time bucket.
+	 */
+	cap = min(cap, (unsigned long)SCHED_CAPACITY_SCALE - 1);
 
 	return approximate_runtime(cap);
 }
@@ -1016,30 +1019,11 @@ static void sugov_stop(struct cpufreq_policy *policy)
 static void sugov_limits(struct cpufreq_policy *policy)
 {
 	struct sugov_policy *sg_policy = policy->governor_data;
-	unsigned long flags, now;
-	unsigned int freq;
 
 	if (!policy->fast_switch_enabled) {
 		mutex_lock(&sg_policy->work_lock);
 		cpufreq_policy_apply_limits(policy);
 		mutex_unlock(&sg_policy->work_lock);
-	} else {
-		raw_spin_lock_irqsave(&sg_policy->update_lock, flags);
-
-		now = ktime_get_ns();
-		freq = policy->cur;
-		/*
-		 * cpufreq_driver_resolve_freq() has a clamp, so we do not need
-		 * to do any sort of additional validation here.
-		 */
-		freq = cpufreq_driver_resolve_freq(policy, freq);
-
-		if (sugov_update_next_freq(sg_policy, now, freq)) {
-			sg_policy->cached_raw_freq = freq;
-			cpufreq_driver_fast_switch(sg_policy->policy, freq);
-		}
-
-		raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
 	}
 
 	/*
