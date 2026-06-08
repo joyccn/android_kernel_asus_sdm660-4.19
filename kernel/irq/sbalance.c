@@ -108,6 +108,7 @@ struct bal_irq {
 
 struct bal_domain {
 	struct list_head  movable_irqs;
+	unsigned long     old_total;
 	unsigned int      intrs;
 	unsigned int      ema_intrs;
 	int               cpu;
@@ -392,8 +393,6 @@ static bool update_irq_data(struct bal_irq *bi, unsigned long now, int *cpu)
 	return true;
 }
 
-<<<<<<< HEAD
-=======
 /* --------------------------------------------------------------------------
  * EMA update
  * -------------------------------------------------------------------------- */
@@ -417,7 +416,6 @@ static unsigned int scale_intrs(unsigned int intrs, int cpu)
 {
 	unsigned long cap = per_cpu(cpu_cap, cpu);
 
-	/* Guard against zero capacity (offline CPU race, thermal shutdown) */
 	if (unlikely(!cap))
 		return intrs;
 
@@ -442,7 +440,6 @@ static bool cluster_move_allowed(int src_cpu, int dst_cpu)
 /* --------------------------------------------------------------------------
  * IRQ migration
  * -------------------------------------------------------------------------- */
->>>>>>> d454e4e313c4 (optimize irq sbalance for sdm636/sdm660)
 static int move_irq_to_cpu(struct bal_irq *bi, int cpu)
 {
 	struct irq_desc *desc = bi->desc;
