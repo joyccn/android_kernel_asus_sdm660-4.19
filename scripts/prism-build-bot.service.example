@@ -5,9 +5,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/root/kernel-work/Prim-Kernel
-EnvironmentFile=/root/kernel-work/prism-bot.env
-ExecStart=/usr/bin/python3 /root/kernel-work/Prim-Kernel/scripts/prism-telegram-bot.py
+User=keysa
+WorkingDirectory=/home/keysa/Prism-Project/android_kernel_asus_sdm660-4.19
+EnvironmentFile=/home/keysa/Prism-Project/prism-bot.env
+ExecStart=/usr/bin/python3 /home/keysa/Prism-Project/android_kernel_asus_sdm660-4.19/scripts/prism-telegram-bot.py
 Restart=on-failure
 RestartSec=10
 
