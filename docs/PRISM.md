@@ -60,6 +60,53 @@ Prism supports two build variants:
 
 Build both variants with: `VARIANT=both ./build-prism.sh all`
 
+The packager clones AnyKernel3 automatically for each zip, so release zips are
+created from the current GitHub AnyKernel source instead of a stale local build
+directory. Defaults:
+
+- `AK3_REPO=https://github.com/joyccn/AnyKernel3`
+- `AK3_BRANCH=master`
+- `WORK_DIR=/root/kernel-work/tmp`
+- `RELEASE_DIR=/root/kernel-work/releases`
+
+Set `AK3_DIR=/path/to/AnyKernel3` only when intentionally packaging from a
+local working tree.
+
+## Telegram Build Bot
+
+`scripts/prism-telegram-bot.py` is a lightweight long-polling controller for
+server-side builds. It supports `/build noksu`, `/build ksu`, `/build both`, and
+an inline keyboard that asks which variant to build.
+
+Required environment:
+
+- `TELEGRAM_BOT_TOKEN` or `TG_TOKEN`
+- `TELEGRAM_OUTPUT_CHAT_ID` or `TG_CHAT_ID`
+
+Recommended environment:
+
+- `TELEGRAM_ADMIN_ID` to restrict who can trigger builds
+- `KERNEL_DIR=/root/kernel-work/Prim-Kernel`
+- `RELEASE_DIR=/root/kernel-work/releases`
+
+On success, the bot uploads every generated AnyKernel3 zip with status, SHA256,
+size in MB, duration, and timestamp, then uploads the build log. On failure, it
+uploads the log with an error caption.
+
+Example `/root/kernel-work/prism-bot.env`:
+
+```sh
+TELEGRAM_BOT_TOKEN=put-token-here
+TELEGRAM_ADMIN_ID=put-your-telegram-user-id-here
+TELEGRAM_OUTPUT_CHAT_ID=put-release-channel-id-here
+KERNEL_DIR=/root/kernel-work/Prim-Kernel
+RELEASE_DIR=/root/kernel-work/releases
+```
+
+A systemd template is available at
+`scripts/prism-build-bot.service.example`. After filling the env file, copy it
+to `/etc/systemd/system/prism-build-bot.service`, then enable and start it.
+
 KernelSU-Next is integrated as the `KernelSU-Next/` git submodule on the `legacy` branch.
 The kernel tree wires it through `drivers/kernelsu -> ../KernelSU-Next/kernel`, `drivers/Kconfig`, and `drivers/Makefile`.
 The KSU defconfig enables `CONFIG_KSU=y` and uses `CONFIG_KSU_MANUAL_HOOK=y` for the 4.19 non-GKI tree, while keeping `CONFIG_KPROBES=y` available for the rest of the kernel.

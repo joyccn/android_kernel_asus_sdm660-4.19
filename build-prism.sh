@@ -3,7 +3,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RELEASE_DIR="${RELEASE_DIR:-/root/kernel-work/releases}"
-AK3_DIR="${AK3_DIR:-/root/kernel-work/AnyKernel3}"
+WORK_DIR="${WORK_DIR:-/root/kernel-work/tmp}"
+AK3_REPO="${AK3_REPO:-https://github.com/joyccn/AnyKernel3}"
+AK3_BRANCH="${AK3_BRANCH:-master}"
+AK3_DIR="${AK3_DIR:-}"
 JOBS="${JOBS:-$(nproc)}"
 
 VARIANT="${VARIANT:-noksu}"
@@ -34,7 +37,11 @@ Variants (VARIANT env var):
   ksu         Build with KernelSU support.
   both        Build both variants sequentially.
 
-Environment: RELEASE_DIR, AK3_DIR, JOBS, VARIANT.
+AnyKernel3 source:
+  By default the packager clones AK3_REPO/AK3_BRANCH into a fresh staging
+  directory for each zip. Set AK3_DIR to package from an existing local tree.
+
+Environment: RELEASE_DIR, WORK_DIR, AK3_REPO, AK3_BRANCH, AK3_DIR, JOBS, VARIANT.
 USAGE
 }
 
@@ -61,6 +68,32 @@ check_tools() {
 }
 
 make_args=()
+prepare_ak3_tree() {
+  local dest="$1"
+
+  rm -rf "$dest"
+  mkdir -p "$(dirname "$dest")"
+
+  if [[ -n "$AK3_DIR" ]]; then
+    test -d "$AK3_DIR" || {
+      echo "AK3_DIR does not exist: $AK3_DIR" >&2
+      return 1
+    }
+    rsync -a --delete \
+      --exclude ".git" \
+      --exclude "*.zip" \
+      --exclude "tmp/" \
+      "$AK3_DIR"/ "$dest"/
+    return 0
+  fi
+
+  echo "=== Cloning AnyKernel3 ==="
+  echo "  repo   : $AK3_REPO"
+  echo "  branch : $AK3_BRANCH"
+  echo "  dest   : $dest"
+  git clone --depth=1 --branch "$AK3_BRANCH" "$AK3_REPO" "$dest"
+}
+
 build_one() {
   local variant_label="$1" defconfig="$2" out_dir="$3" stamp="$4"
 
@@ -95,22 +128,21 @@ build_one() {
 package_one() {
   local variant_label="$1" out_dir="$2" stamp="$3"
   local img="$out_dir/arch/arm64/boot/Image.gz-dtb"
+  local ak3_work="$WORK_DIR/ak3-${stamp}"
 
   test -s "$img" || {
     echo "Image not found: $img. Build first." >&2
     return 1
   }
-  test -d "$AK3_DIR" || {
-    echo "AnyKernel3 directory not found: $AK3_DIR" >&2
-    return 1
-  }
 
   local zip_name="Prism-X01BD-${stamp}-AnyKernel3.zip"
-  mkdir -p "$RELEASE_DIR"
-  cp -f "$img" "$AK3_DIR/Image.gz-dtb"
-  (cd "$AK3_DIR" && zip -r9 "$RELEASE_DIR/$zip_name" . \
+  mkdir -p "$RELEASE_DIR" "$WORK_DIR"
+  prepare_ak3_tree "$ak3_work"
+  cp -f "$img" "$ak3_work/Image.gz-dtb"
+  (cd "$ak3_work" && zip -r9 "$RELEASE_DIR/$zip_name" . \
     -x ".git/*" "README.md" "*.zip" "tmp/*" >/dev/null)
   sha256sum "$RELEASE_DIR/$zip_name" | tee "$RELEASE_DIR/$zip_name.sha256"
+  du -h "$RELEASE_DIR/$zip_name"
 }
 
 build_kernel() {

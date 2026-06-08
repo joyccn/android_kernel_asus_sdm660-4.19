@@ -1,0 +1,15 @@
+[Unit]
+Description=Prism kernel Telegram build bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/kernel-work/Prim-Kernel
+EnvironmentFile=/root/kernel-work/prism-bot.env
+ExecStart=/usr/bin/python3 /root/kernel-work/Prim-Kernel/scripts/prism-telegram-bot.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
