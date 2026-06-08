@@ -2289,7 +2289,7 @@ done:
 static int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on, int suspend)
 {
 	u32			reg, reg1;
-	u32			timeout = 1500;
+	u32			timeout = 3000;
 	u32			saved_config = 0;
 
 	dbg_event(0xFF, "run_stop", is_on);

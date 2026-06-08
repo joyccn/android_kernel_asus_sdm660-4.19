@@ -1581,11 +1581,11 @@ static int afe_apr_send_pkt(void *data, wait_queue_head_t *wait)
 					(atomic_read(&this_afe.state) == 0),
 					msecs_to_jiffies(2 * TIMEOUT_MS));
 			if (!ret) {
-				pr_err_ratelimited("%s: request timedout\n",
+				pr_debug_ratelimited("%s: request timedout\n",
 					__func__);
 				ret = -ETIMEDOUT;
 			} else if (atomic_read(&this_afe.status) > 0) {
-				pr_err("%s: DSP returned error[%s]\n", __func__,
+				pr_debug_ratelimited("%s: DSP returned error[%s]\n", __func__,
 					adsp_err_get_err_str(atomic_read(
 					&this_afe.status)));
 				ret = adsp_err_get_lnx_err_code(
@@ -2247,7 +2247,7 @@ static int afe_send_cal_block(u16 port_id, struct cal_block_data *cal_block)
 	result = q6afe_set_params(port_id, q6audio_get_port_index(port_id),
 				  &mem_hdr, NULL, payload_size);
 	if (result)
-		pr_err("%s: AFE cal for port 0x%x failed %d\n",
+		pr_debug_ratelimited("%s: AFE cal for port 0x%x failed %d\n",
 		       __func__, port_id, result);
 
 done:
