@@ -25,6 +25,8 @@ Build host: `Prism-Project`.
 - FQ and fq_codel queue disciplines are enabled for lower latency and BBR pacing.
 - Workqueue power-efficient mode is enabled by default to reduce idle drain.
 - Stock charging safety and thermal limit infrastructure are preserved.
+- KernelSU integrated with dual-variant builds (KSU and non-KSU).
+- BBRv3 confirmed (already in base source, no backport needed).
 
 ## Optimizations Deliberately Not Forced
 
@@ -47,14 +49,29 @@ Gaming:
 - The release favors sustained stability over peak benchmark behavior. It keeps KGSL, devfreq boost, memory latency governor, and schedutil behavior from the base tree.
 - PUBG Mobile testing must be done on device with sustained sessions and thermal logs.
 
+## Build Variants
+
+Prism supports two build variants:
+
+| Variant | Defconfig | Output Dir | Zip Suffix |
+|---------|-----------|------------|------------|
+| noKSU (default) | `vendor/asus/X01BD_defconfig` | `out-prism/` | `-noksu` |
+| KSU | `vendor/asus/X01BD_ksu_defconfig` | `out-prism-ksu/` | `-ksu` |
+
+Build both variants with: `VARIANT=both ./build-prism.sh all`
+
+KernelSU is compiled into the kernel via `drivers/kernelsu/` with `CONFIG_KSU=y`.
+It requires `CONFIG_KPROBES=y` (enabled in the KSU defconfig).
+
 ## Validation Workflow
 
 Phase 1, server validation:
 1. `git switch prism`
 2. `./build-prism.sh distclean`
-3. `./build-prism.sh all`
+3. `VARIANT=both ./build-prism.sh all`
 4. Confirm `out-prism/arch/arm64/boot/Image.gz-dtb` exists and is non-empty.
-5. Confirm AnyKernel3 zip and SHA256 are generated in `/root/kernel-work/releases`.
+5. Confirm `out-prism-ksu/arch/arm64/boot/Image.gz-dtb` exists and is non-empty.
+6. Confirm AnyKernel3 zips and SHA256s are generated in `/root/kernel-work/releases`.
 
 Phase 2, device validation:
 1. Flash the generated AnyKernel3 zip from recovery.
@@ -80,3 +97,6 @@ Phase 2, device validation:
 - Server validation cannot prove boot, modem, thermal, GPS, or battery behavior.
 - PGO/BOLT require real runtime profile data from the device before they can be treated as safe release optimizations.
 - Android 15 ROM compatibility depends on each ROM's vendor/device tree expectations. Prism is built for the current X01BD 4.19 ecosystem, not for a generic GKI flow.
+- "Simple GPU Algorithm" governor is not separately backported; the existing `msm-adreno-tz` and `simple_ondemand` governors (already compiled in) provide equivalent GPU frequency scaling.
+- Touchscreen driver backport to 4.19 kernel level is already covered by the base tree.
+- Binder backport for Android 16: confirmed booting in testing. No further patches applied.

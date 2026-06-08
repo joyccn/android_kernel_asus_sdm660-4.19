@@ -149,3 +149,5 @@ bindings/display/qcom
 
 # Object directory
 out/
+out-prism/
+out-prism-ksu/
