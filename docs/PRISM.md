@@ -9,7 +9,7 @@ Build host: `Prism-Project`.
 ## Research Notes, 2026-06-07
 
 - Current X01BD work is community maintained. The practical modern base is a 4.19 SDM660 tree, because Android 13/14/15 ROM ports for this device family rely on backported Android kernel interfaces rather than a mainline SDM660 stack.
-- Public X01BD references still point to ASUS SDM660 family kernels, RyuujiX/KnightWalker 4.19 work, older Lineage-era X01BD trees, rsuntk AnyKernel/KernelSU ecosystem work, and Telegram ROM releases for Android 15/LineageOS 22.1 X01BD. Most old Android 10/11 XDA threads are useful only for compatibility hints, not as current patch sources.
+- Public X01BD references still point to ASUS SDM660 family kernels, RyuujiX/KnightWalker 4.19 work, older Lineage-era X01BD trees, rsuntk AnyKernel/KernelSU-Next ecosystem work, and Telegram ROM releases for Android 15/LineageOS 22.1 X01BD. Most old Android 10/11 XDA threads are useful only for compatibility hints, not as current patch sources.
 - The selected base already includes Android compatibility pieces that matter for newer ROMs: binderfs, incremental fs, EROFS, exFAT, WireGuard, Simple LMK, F2FS, fs-verity, inline crypto hooks, BPF JIT, uclamp, LRU_GEN, and modernized scheduler/cpufreq changes.
 - Daily-driver ROM compatibility priority is Android 13/14/15 AOSP/Lineage-style trees for X01BD/X01BDA. Prism avoids unsafe charging-current changes, panel/touch hacks, and aggressive thermal bypasses because this phone is used for work, navigation, mobile data, and messaging throughout the day.
 
@@ -25,7 +25,7 @@ Build host: `Prism-Project`.
 - FQ and fq_codel queue disciplines are enabled for lower latency and BBR pacing.
 - Workqueue power-efficient mode is enabled by default to reduce idle drain.
 - Stock charging safety and thermal limit infrastructure are preserved.
-- KernelSU integrated with dual-variant builds (KSU and non-KSU).
+- KernelSU-Next legacy integrated with dual-variant builds (KSU and non-KSU).
 - BBRv3 confirmed (already in base source, no backport needed).
 
 ## Optimizations Deliberately Not Forced
@@ -56,12 +56,15 @@ Prism supports two build variants:
 | Variant | Defconfig | Output Dir | Zip Suffix |
 |---------|-----------|------------|------------|
 | noKSU (default) | `vendor/asus/X01BD_defconfig` | `out-prism/` | `-noksu` |
-| KSU | `vendor/asus/X01BD_ksu_defconfig` | `out-prism-ksu/` | `-ksu` |
+| KernelSU-Next legacy | `vendor/asus/X01BD_ksu_defconfig` | `out-prism-ksu/` | `-ksu` |
 
 Build both variants with: `VARIANT=both ./build-prism.sh all`
 
-KernelSU is compiled into the kernel via `drivers/kernelsu/` with `CONFIG_KSU=y`.
-It requires `CONFIG_KPROBES=y` (enabled in the KSU defconfig).
+KernelSU-Next is integrated as the `KernelSU-Next/` git submodule on the `legacy` branch.
+The kernel tree wires it through `drivers/kernelsu -> ../KernelSU-Next/kernel`, `drivers/Kconfig`, and `drivers/Makefile`.
+The KSU defconfig enables `CONFIG_KSU=y` and uses `CONFIG_KSU_MANUAL_HOOK=y` for the 4.19 non-GKI tree, while keeping `CONFIG_KPROBES=y` available for the rest of the kernel.
+
+Manual hooks are present for `exec`, `faccessat`, `stat`, `reboot`, `read`, input safe-mode events, and KernelSU-Next LSM/devpts handling. This avoids relying on the kprobes hook path as the default on this legacy 4.19 device kernel.
 
 ## Validation Workflow
 
